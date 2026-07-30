@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CELLQUEST — Interactive Cell Cycle Explorer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#05070a;
+  --surface:#0d141c;
+  --surface2:#121b25;
+  --line:#1e2b36;
+  --text:#e7f0f4;
+  --muted:#8ba3ae;
+  --dna:#5ec8ff;      /* DAPI blue - chromatin/DNA */
+  --spindle:#ffc168;  /* amber - spindle fibers */
+  --membrane:#b98cff; /* violet - membrane/organelle */
+  --accent:#ff4f81;   /* magenta - CTA / counterstain */
+  --go:#59e08a;
+  --pause:#ffd166;
+  --stop:#ff5c6c;
+  --g1:#5ec8ff;
+  --s:#7cf29c;
+  --g2:#ffd166;
+  --prophase:#ff9e6d;
+  --metaphase:#ff6d9e;
+  --anaphase:#c58bff;
+  --telophase:#6de0ff;
+  --cyto:#ff4f81;
+  --radius:14px;
+  --font-display:'Space Grotesk', sans-serif;
+  --font-body:'IBM Plex Sans', sans-serif;
+  --font-mono:'IBM Plex Mono', monospace;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:var(--font-body);}
+body{
+  background:
+    radial-gradient(circle at 15% 10%, rgba(94,200,255,0.07), transparent 40%),
+    radial-gradient(circle at 85% 90%, rgba(255,79,129,0.06), transparent 45%),
+    var(--bg);
+  min-height:100vh;
+}
+h1,h2,h3,h4{font-family:var(--font-display); margin:0; letter-spacing:0.2px;}
+p{line-height:1.55; color:var(--muted);}
+button{font-family:var(--font-body); cursor:pointer;}
+.mono{font-family:var(--font-mono);}
+::selection{background:var(--accent); color:#000;}
+:focus-visible{outline:2px solid var(--dna); outline-offset:2px;}
+
+/* ---------- NAV ---------- */
+#topnav{
+  position:sticky; top:0; z-index:50;
+  display:flex; align-items:center; justify-content:space-between;
+  padding:14px 22px; background:rgba(5,7,10,0.85); backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--line);
+}
+.brand{display:flex; align-items:center; gap:10px; cursor:pointer;}
+.brand-mark{width:30px;height:30px;flex-shrink:0;}
+.brand-text{font-family:var(--font-display); font-weight:700; font-size:1.15rem; letter-spacing:0.5px;}
+.brand-text span{color:var(--accent);}
+.navlinks{display:flex; gap:4px; flex-wrap:wrap;}
+.navlinks button{
+  background:transparent; border:1px solid transparent; color:var(--muted);
+  padding:8px 14px; border-radius:999px; font-size:0.85rem; font-weight:500; transition:all .15s;
+}
+.navlinks button:hover{color:var(--text); border-color:var(--line); background:var(--surface);}
+.navlinks button.active{color:var(--bg); background:var(--dna); border-color:var(--dna);}
+
+.view{display:none; padding:32px 22px 80px; max-width:1180px; margin:0 auto; animation:fadein .35s ease;}
+.view.active{display:block;}
+@keyframes fadein{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);}}
+
+/* ---------- HOME ---------- */
+.hero{display:grid; grid-template-columns:1.1fr 0.9fr; gap:40px; align-items:center; padding:36px 0 20px;}
+@media(max-width:860px){.hero{grid-template-columns:1fr;}}
+.eyebrow{
+  display:inline-flex; align-items:center; gap:8px; font-family:var(--font-mono); font-size:0.72rem;
+  letter-spacing:2px; text-transform:uppercase; color:var(--dna); border:1px solid var(--line);
+  padding:5px 10px; border-radius:999px; margin-bottom:16px;
+}
+.eyebrow::before{content:''; width:6px; height:6px; border-radius:50%; background:var(--go); box-shadow:0 0 8px var(--go);}
+.hero h1{font-size:clamp(2.4rem,6vw,4rem); line-height:1.02; font-weight:700;}
+.hero h1 .accent{color:var(--accent);}
+.tagline{font-family:var(--font-display); font-size:1.15rem; color:var(--spindle); margin:14px 0 10px; font-weight:500;}
+.hero p.lead{font-size:1.02rem; max-width:46ch;}
+.cta-row{display:flex; gap:12px; margin-top:22px; flex-wrap:wrap;}
+.btn{
+  border:none; border-radius:10px; padding:12px 20px; font-weight:600; font-size:0.92rem;
+  transition:transform .15s, box-shadow .15s;
+}
+.btn-primary{background:var(--accent); color:#1a0210; box-shadow:0 6px 20px rgba(255,79,129,0.25);}
+.btn-primary:hover{transform:translateY(-2px);}
+.btn-ghost{background:transparent; border:1px solid var(--line); color:var(--text);}
+.btn-ghost:hover{border-color:var(--dna); color:var(--dna);}
+
+/* wheel */
+.wheel-wrap{position:relative; display:flex; align-items:center; justify-content:center;}
+.wheel-center-label{position:absolute; text-align:center; pointer-events:none;}
+.wheel-center-label .k{font-family:var(--font-mono); font-size:0.68rem; color:var(--muted); letter-spacing:1px; text-transform:uppercase;}
+.wheel-center-label .v{font-family:var(--font-display); font-size:1.3rem; font-weight:700;}
+.wheel-seg{cursor:pointer; transition:opacity .2s;}
+.wheel-seg:hover{opacity:0.85;}
+.wheel-seg text{font-family:var(--font-mono); font-size:11px; font-weight:600; fill:#05070a;}
+
+.section-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-top:36px;}
+@media(max-width:900px){.section-grid{grid-template-columns:repeat(2,1fr);}}
+@media(max-width:520px){.section-grid{grid-template-columns:1fr;}}
+.card-btn{
+  background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+  padding:20px 16px; text-align:left; color:var(--text); position:relative; overflow:hidden;
+  transition:border-color .2s, transform .2s;
+}
+.card-btn:hover{border-color:var(--dna); transform:translateY(-3px);}
+.card-btn .ic{font-size:1.5rem; display:block; margin-bottom:10px;}
+.card-btn .t{font-family:var(--font-display); font-weight:600; font-size:1rem; display:block;}
+.card-btn .d{font-size:0.8rem; color:var(--muted); margin-top:4px; display:block;}
+.badge-soon{
+  position:absolute; top:10px; right:10px; font-family:var(--font-mono); font-size:0.6rem;
+  color:var(--muted); border:1px solid var(--line); padding:2px 7px; border-radius:999px; letter-spacing:0.5px;
+}
+
+.section-title{font-size:1.4rem; margin:44px 0 14px; display:flex; align-items:center; gap:10px;}
+.section-title .num{font-family:var(--font-mono); color:var(--dna); font-size:0.9rem;}
+
+/* ---------- EXPLORER ---------- */
+.explorer-layout{display:grid; grid-template-columns:340px 1fr; gap:26px; align-items:start;}
+@media(max-width:900px){.explorer-layout{grid-template-columns:1fr;}}
+.panel{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:22px;}
+.stage-pill-row{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:18px;}
+.stage-pill{
+  font-family:var(--font-mono); font-size:0.7rem; padding:6px 10px; border-radius:999px;
+  border:1px solid var(--line); background:transparent; color:var(--muted); font-weight:500;
+}
+.stage-pill.active{color:#05070a; font-weight:700;}
+.detail-header{display:flex; align-items:baseline; gap:10px; margin-bottom:6px;}
+.detail-header .dot{width:12px;height:12px;border-radius:50%; flex-shrink:0;}
+.detail-group{font-family:var(--font-mono); font-size:0.7rem; color:var(--muted); text-transform:uppercase; letter-spacing:1.5px;}
+.stat-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:16px 0;}
+.stat{background:var(--surface2); border:1px solid var(--line); border-radius:10px; padding:10px 12px;}
+.stat .k{font-family:var(--font-mono); font-size:0.62rem; color:var(--muted); text-transform:uppercase; letter-spacing:1px;}
+.stat .v{font-size:0.86rem; margin-top:2px; font-weight:500;}
+.event-list{margin:14px 0; padding-left:18px;}
+.event-list li{margin-bottom:5px; font-size:0.9rem; color:var(--text);}
+.struct-tags{display:flex; flex-wrap:wrap; gap:6px; margin:10px 0;}
+.struct-tag{font-size:0.75rem; padding:4px 9px; border-radius:6px; background:var(--surface2); border:1px solid var(--line);}
+
+.quickcheck{margin-top:20px; border-top:1px dashed var(--line); padding-top:16px;}
+.quickcheck h4{font-size:0.9rem; color:var(--spindle); margin-bottom:10px;}
+.qc-opts{display:flex; flex-direction:column; gap:8px;}
+.qc-opt{
+  text-align:left; background:var(--surface2); border:1px solid var(--line); color:var(--text);
+  padding:9px 12px; border-radius:8px; font-size:0.86rem; transition:border-color .15s;
+}
+.qc-opt:hover{border-color:var(--dna);}
+.qc-opt.correct{border-color:var(--go); background:rgba(89,224,138,0.1);}
+.qc-opt.wrong{border-color:var(--stop); background:rgba(255,92,108,0.1);}
+.qc-feedback{margin-top:10px; font-size:0.85rem; padding:10px 12px; border-radius:8px; display:none;}
+.qc-feedback.show{display:block;}
+.qc-feedback.ok{background:rgba(89,224,138,0.1); color:var(--go); border:1px solid rgba(89,224,138,0.3);}
+.qc-feedback.no{background:rgba(255,92,108,0.1); color:var(--stop); border:1px solid rgba(255,92,108,0.3);}
+
+.scene-wrap{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:20px; min-height:340px; display:flex; flex-direction:column; align-items:center; justify-content:center; position:relative;}
+.scene-caption{position:absolute; bottom:14px; left:20px; right:20px; font-family:var(--font-mono); font-size:0.72rem; color:var(--muted); text-align:center;}
+
+/* time machine */
+.timemachine{margin-top:22px; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:18px 22px;}
+.tm-controls{display:flex; align-items:center; gap:10px; margin-bottom:12px;}
+.tm-btn{background:var(--surface2); border:1px solid var(--line); color:var(--text); width:36px; height:36px; border-radius:8px; font-size:1rem;}
+.tm-btn:hover{border-color:var(--dna);}
+.tm-slider{flex:1;}
+input[type=range]{-webkit-appearance:none; width:100%; height:6px; border-radius:3px; background:var(--surface2); outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none; width:18px; height:18px; border-radius:50%; background:var(--dna); border:2px solid #05070a; cursor:pointer;}
+.tm-labels{display:flex; justify-content:space-between; font-family:var(--font-mono); font-size:0.62rem; color:var(--muted); margin-top:6px;}
+
+/* ---------- LAB ---------- */
+.lab-tabs{display:flex; gap:8px; margin-bottom:20px;}
+.lab-tab{padding:9px 16px; border-radius:8px; border:1px solid var(--line); background:var(--surface); color:var(--muted); font-weight:600; font-size:0.85rem;}
+.lab-tab.active{background:var(--dna); color:#05070a; border-color:var(--dna);}
+.lab-pane{display:none;}
+.lab-pane.active{display:block;}
+
+.seq-tray{display:flex; flex-wrap:wrap; gap:10px; min-height:70px; padding:14px; background:var(--surface); border:1px dashed var(--line); border-radius:var(--radius); margin-bottom:14px;}
+.seq-slot-row{display:flex; flex-wrap:wrap; gap:10px; min-height:70px; padding:14px; background:var(--surface2); border:1px solid var(--line); border-radius:var(--radius); margin-bottom:16px;}
+.seq-card{
+  user-select:none; cursor:grab; padding:10px 14px; border-radius:8px; font-weight:600; font-size:0.82rem;
+  border:1px solid var(--line); color:#05070a; font-family:var(--font-mono); letter-spacing:0.3px;
+}
+.seq-card.dragging{opacity:0.4;}
+.seq-slot-row .slot-placeholder{
+  width:110px; height:40px; border:1px dashed var(--line); border-radius:8px; display:flex; align-items:center; justify-content:center;
+  font-family:var(--font-mono); font-size:0.65rem; color:var(--muted);
+}
+.lab-actions{display:flex; gap:10px; align-items:center; margin-top:6px;}
+.lab-result{font-size:0.9rem; margin-top:12px; padding:12px 14px; border-radius:10px; display:none;}
+.lab-result.show{display:block;}
+.lab-result.ok{background:rgba(89,224,138,0.1); border:1px solid rgba(89,224,138,0.3); color:var(--go);}
+.lab-result.no{background:rgba(255,92,108,0.1); border:1px solid rgba(255,92,108,0.3); color:var(--stop);}
+
+.slide-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:16px;}
+@media(max-width:760px){.slide-grid{grid-template-columns:repeat(2,1fr);}}
+@media(max-width:480px){.slide-grid{grid-template-columns:1fr;}}
+.slide-card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:14px; text-align:center;}
+.slide-card svg{width:100%; height:110px;}
+.slide-card .id-btns{display:flex; flex-wrap:wrap; gap:5px; justify-content:center; margin-top:10px;}
+.slide-card .id-btns button{font-size:0.68rem; padding:5px 8px; border-radius:6px; border:1px solid var(--line); background:var(--surface2); color:var(--text);}
+.slide-card .id-btns button.correct{background:rgba(89,224,138,0.2); border-color:var(--go); color:var(--go);}
+.slide-card .id-btns button.wrong{background:rgba(255,92,108,0.2); border-color:var(--stop); color:var(--stop);}
+.slide-card .status{font-family:var(--font-mono); font-size:0.65rem; color:var(--muted); margin-top:8px; min-height:14px;}
+
+/* ---------- QUIZ ---------- */
+.quiz-card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:26px; max-width:680px; margin:0 auto;}
+.quiz-progress{font-family:var(--font-mono); font-size:0.72rem; color:var(--muted); margin-bottom:10px;}
+.quiz-q{font-size:1.1rem; margin-bottom:18px; font-weight:500;}
+.quiz-opts{display:flex; flex-direction:column; gap:10px;}
+.quiz-opt{text-align:left; background:var(--surface2); border:1px solid var(--line); color:var(--text); padding:12px 14px; border-radius:10px; font-size:0.92rem;}
+.quiz-opt:hover{border-color:var(--dna);}
+.quiz-opt.correct{border-color:var(--go); background:rgba(89,224,138,0.12);}
+.quiz-opt.wrong{border-color:var(--stop); background:rgba(255,92,108,0.12);}
+.quiz-explain{margin-top:16px; font-size:0.85rem; padding:12px 14px; border-radius:10px; background:var(--surface2); display:none;}
+.quiz-explain.show{display:block;}
+.quiz-nextbar{display:flex; justify-content:flex-end; margin-top:18px;}
+
+.score-ring-wrap{display:flex; flex-direction:column; align-items:center; gap:8px; margin:10px 0 20px;}
+.score-big{font-family:var(--font-display); font-size:2.6rem; font-weight:700;}
+.review-list{display:flex; flex-wrap:wrap; gap:8px; margin:14px 0;}
+.review-chip{font-size:0.78rem; padding:6px 12px; border-radius:999px; background:rgba(255,92,108,0.12); border:1px solid rgba(255,92,108,0.35); color:var(--stop);}
+
+/* ---------- PROGRESS ---------- */
+.progress-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:18px;}
+@media(max-width:700px){.progress-grid{grid-template-columns:1fr;}}
+.prog-card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:20px;}
+.prog-card .label{font-size:0.85rem; color:var(--muted); margin-bottom:8px;}
+.bar-track{height:10px; background:var(--surface2); border-radius:999px; overflow:hidden;}
+.bar-fill{height:100%; background:linear-gradient(90deg, var(--dna), var(--accent)); border-radius:999px; transition:width .5s ease;}
+.prog-card .pct{font-family:var(--font-mono); font-size:0.8rem; margin-top:6px; color:var(--text);}
+
+.toast{
+  position:fixed; bottom:26px; left:50%; transform:translateX(-50%) translateY(20px);
+  background:var(--surface2); border:1px solid var(--dna); color:var(--text); padding:12px 20px;
+  border-radius:10px; font-size:0.85rem; opacity:0; pointer-events:none; transition:all .3s; z-index:100;
+}
+.toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+
+.footnote{margin-top:60px; font-size:0.75rem; color:var(--muted); text-align:center; font-family:var(--font-mono);}
+</style>
+</head>
+<body>
+
+<nav id="topnav">
+  <div class="brand" onclick="goTo('home')">
+    <svg class="brand-mark" viewBox="0 0 40 40"><circle cx="20" cy="20" r="17" fill="none" stroke="#5ec8ff" stroke-width="2"/><path d="M20 6 A14 14 0 0 1 34 20" stroke="#ff4f81" stroke-width="2" fill="none"/><circle cx="20" cy="20" r="5" fill="#ffc168"/></svg>
+    <div class="brand-text">CELL<span>QUEST</span></div>
+  </div>
+  <div class="navlinks" id="navlinks">
+    <button data-nav="home">Home</button>
+    <button data-nav="explorer">Explore</button>
+    <button data-nav="lab">Mitosis Lab</button>
+    <button data-nav="quiz">Quiz</button>
+    <button data-nav="progress">Progress</button>
+  </div>
+</nav>
+
+<!-- ================= HOME ================= -->
+<section class="view active" id="view-home">
+  <div class="hero">
+    <div>
+      <div class="eyebrow">Senior High School · Biology / STEM</div>
+      <h1>CELL<span class="accent">QUEST</span></h1>
+      <div class="tagline">Explore. Interact. Divide. Learn.</div>
+      <p class="lead">Explore how a living cell grows, replicates its DNA, prepares for division, and produces two new daughter cells — by driving the simulation yourself, not by reading about it.</p>
+      <div class="cta-row">
+        <button class="btn btn-primary" onclick="goTo('explorer')">Explore Cell Cycle →</button>
+        <button class="btn btn-ghost" onclick="goTo('lab')">Enter Mitosis Lab</button>
+      </div>
+    </div>
+    <div class="wheel-wrap">
+      <div id="home-wheel"></div>
+    </div>
+  </div>
+
+  <div class="section-title"><span class="num">01</span> Start learning</div>
+  <div class="section-grid">
+    <button class="card-btn" onclick="goTo('explorer')"><span class="ic">🧬</span><span class="t">Explore Cell Cycle</span><span class="d">G1 → S → G2 → M → Cytokinesis, one clickable stage at a time.</span></button>
+    <button class="card-btn" onclick="showSoon('3D Cell Explorer')"><span class="ic">🔬</span><span class="t">3D Cell Explorer</span><span class="d">Rotate a cell model and inspect its structures.</span><span class="badge-soon">Phase 2</span></button>
+    <button class="card-btn" onclick="goTo('lab')"><span class="ic">🧫</span><span class="t">Mitosis Lab</span><span class="d">Sequence the stages and identify onion root tip cells.</span></button>
+    <button class="card-btn" onclick="showSoon('Checkpoint Challenge')"><span class="ic">🚦</span><span class="t">Checkpoint Challenge</span><span class="d">Act as a Cell Cycle Inspector — proceed, pause, or repair.</span><span class="badge-soon">Phase 2</span></button>
+    <button class="card-btn" onclick="showSoon('Normal vs Cancer Cell')"><span class="ic">⚠️</span><span class="t">Normal vs Cancer Cell</span><span class="d">Compare controlled growth with checkpoint failure.</span><span class="badge-soon">Phase 2</span></button>
+    <button class="card-btn" onclick="showSoon('Virtual Microscope')"><span class="ic">🔭</span><span class="t">Virtual Microscope</span><span class="d">Zoom, focus, and identify mitotic stages on a slide.</span><span class="badge-soon">Phase 2</span></button>
+    <button class="card-btn" onclick="goTo('quiz')"><span class="ic">📝</span><span class="t">Cell Cycle Quiz</span><span class="d">Multiple choice, sequencing, and scenario questions.</span></button>
+    <button class="card-btn" onclick="goTo('progress')"><span class="ic">📊</span><span class="t">Learning Progress</span><span class="d">Track your mastery across activities this session.</span></button>
+  </div>
+  <p class="footnote">Interphase is not a "resting" phase — it is an active period of growth, normal cellular function, DNA replication, and preparation for division.</p>
+</section>
+
+<!-- ================= EXPLORER ================= -->
+<section class="view" id="view-explorer">
+  <h2>Interactive Cell Cycle</h2>
+  <p>Click any stage on the wheel, or drive the Time Machine below, to see what a cell is doing at that moment.</p>
+
+  <div class="explorer-layout" style="margin-top:20px;">
+    <div>
+      <div class="scene-wrap" id="scene-wrap" style="margin-bottom:18px;">
+        <div id="scene-svg"></div>
+        <div class="scene-caption" id="scene-caption"></div>
+      </div>
+      <div id="explorer-wheel" style="display:flex; justify-content:center;"></div>
+    </div>
+
+    <div class="panel" id="detail-panel"></div>
+  </div>
+
+  <div class="timemachine">
+    <h3 style="font-size:1rem; margin-bottom:12px;">Cell Cycle Time Machine</h3>
+    <div class="tm-controls">
+      <button class="tm-btn" id="tm-prev" title="Previous">⏮</button>
+      <button class="tm-btn" id="tm-play" title="Play">▶</button>
+      <button class="tm-btn" id="tm-next" title="Next">⏭</button>
+      <div class="tm-slider"><input type="range" id="tm-slider" min="0" max="7" step="1" value="0"></div>
+      <button class="tm-btn" id="tm-reset" title="Reset">⟲</button>
+    </div>
+    <div class="tm-labels" id="tm-labels"></div>
+  </div>
+</section>
+
+<!-- ================= LAB ================= -->
+<section class="view" id="view-lab">
+  <h2>Mitosis Lab</h2>
+  <p>Work like a cell biologist: put the cell cycle in the correct order, then identify real onion root tip cells by stage.</p>
+  <div class="lab-tabs">
+    <button class="lab-tab active" data-tab="seq">Sequence the Cycle</button>
+    <button class="lab-tab" data-tab="slide">Onion Root Tip Slide</button>
+  </div>
+
+  <div class="lab-pane active" id="pane-seq">
+    <p style="font-size:0.85rem;">Drag each card from the tray into the row, in order, from G1 through Cytokinesis.</p>
+    <div class="seq-tray" id="seq-tray"></div>
+    <div class="seq-slot-row" id="seq-slots"></div>
+    <div class="lab-actions">
+      <button class="btn btn-primary" id="seq-check">Check Order</button>
+      <button class="btn btn-ghost" id="seq-reset">Reset</button>
+    </div>
+    <div class="lab-result" id="seq-result"></div>
+  </div>
+
+  <div class="lab-pane" id="pane-slide">
+    <p style="font-size:0.85rem;">Each panel represents one cell from a simulated onion root tip slide. Identify its stage.</p>
+    <div class="slide-grid" id="slide-grid"></div>
+    <div class="lab-result show" id="slide-score" style="background:var(--surface2); border:1px solid var(--line); color:var(--text);"></div>
+  </div>
+</section>
+
+<!-- ================= QUIZ ================= -->
+<section class="view" id="view-quiz">
+  <h2>Cell Cycle Quiz</h2>
+  <div id="quiz-body"></div>
+</section>
+
+<!-- ================= PROGRESS ================= -->
+<section class="view" id="view-progress">
+  <h2>Cell Cycle Mastery</h2>
+  <p>Your progress this session (resets when you reload the app).</p>
+  <div class="progress-grid" id="progress-grid" style="margin-top:20px;"></div>
+</section>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================
+   DATA
+========================================================= */
+const STAGES = [
+  {
+    id:'g1', name:'G1 Phase', group:'Interphase', color:'var(--g1)', hex:'#5ec8ff',
+    tagline:'Cell Size: Increasing',
+    desc:'During G1, the cell grows and carries out its normal functions. It also produces the proteins and organelles it will need for the later stages of the cycle.',
+    events:['Cell growth','Protein synthesis','Organelle production','Normal cellular activities'],
+    dna:'Unreplicated · one copy of each chromosome',
+    chromosome:'Chromatin, loosely packed and not visible as distinct chromosomes',
+    structures:['Nucleus','Ribosomes','Mitochondria','Cytoskeleton'],
+    quickCheck:{q:'What is the major event during G1?', options:['DNA replication','Cell growth and organelle production','Chromosome separation','Cytoplasmic division'], correct:1, explain:'G1 is a growth phase: the cell enlarges and builds the proteins and organelles it needs before replicating its DNA in S phase.'}
+  },
+  {
+    id:'s', name:'S Phase', group:'Interphase', color:'var(--s)', hex:'#7cf29c',
+    tagline:'DNA Replication',
+    desc:'During S phase, the cell replicates its DNA so that each daughter cell will receive a complete set of genetic information. Each chromosome becomes two identical sister chromatids joined at the centromere.',
+    events:['DNA strands separate','Complementary nucleotides added','Two identical DNA molecules formed','Sister chromatids produced'],
+    dna:'Actively replicating: original DNA → two identical copies',
+    chromosome:'Each chromosome duplicated into two sister chromatids',
+    structures:['DNA polymerase','Nucleotides','Sister chromatids','Centromere'],
+    quickCheck:{q:'What is produced at the end of S phase?', options:['Two daughter cells','Two identical sister chromatids per chromosome','A cleavage furrow','A metaphase plate'], correct:1, explain:'S phase copies each chromosome, producing two identical sister chromatids joined at a centromere — not yet two separate cells.'}
+  },
+  {
+    id:'g2', name:'G2 Phase', group:'Interphase', color:'var(--g2)', hex:'#ffd166',
+    tagline:'DNA Check → Ready for Mitosis',
+    desc:'The cell continues to grow and produce proteins, checks that DNA replication was completed correctly, and prepares the cellular structures it needs for mitosis.',
+    events:['Continued growth','Protein production','Preparation for mitosis','DNA damage checking'],
+    dna:'Fully replicated, verified for damage before mitosis begins',
+    chromosome:'Chromatin, still decondensed but fully duplicated',
+    structures:['Centrosomes (duplicated)','Microtubules','Nuclear envelope'],
+    quickCheck:{q:'What does the G2 checkpoint verify?', options:['That cytokinesis occurred','That chromosomes are aligned at the equator','That DNA was replicated correctly and the cell is ready to divide','That the cell has finished growing in G1'], correct:2, explain:'The G2 checkpoint confirms DNA replication was completed accurately before the cell commits to mitosis. Damage detected here can halt the cycle for repair.'}
+  },
+  {
+    id:'prophase', name:'Prophase', group:'Mitosis', color:'var(--prophase)', hex:'#ff9e6d',
+    tagline:'Chromosomes condense',
+    desc:'Chromatin condenses into visible chromosomes, the nuclear envelope begins to break down, spindle fibers form, and centrosomes move toward opposite poles of the cell.',
+    events:['Chromatin condenses into chromosomes','Nuclear envelope breaks down','Spindle fibers form','Centrosomes move to opposite poles'],
+    dna:'Condensed into tightly packed chromosomes',
+    chromosome:'Visible as X-shaped structures (two sister chromatids each)',
+    structures:['Condensed chromosomes','Spindle fibers','Centrosomes'],
+    quickCheck:{q:'What happens to the nuclear envelope during prophase?', options:['It thickens','It breaks down','It duplicates','It forms the cell plate'], correct:1, explain:'The nuclear envelope breaks down during prophase, allowing spindle fibers from the forming spindle apparatus to later attach to chromosomes.'}
+  },
+  {
+    id:'metaphase', name:'Metaphase', group:'Mitosis', color:'var(--metaphase)', hex:'#ff6d9e',
+    tagline:'Chromosomes align at the equator',
+    desc:'Chromosomes line up along the metaphase plate, the imaginary plane at the center of the cell, with spindle fibers attached to each sister chromatid from opposite poles.',
+    events:['Chromosomes align at the metaphase plate','Spindle fibers attach to centromeres','Spindle checkpoint verifies attachment'],
+    dna:'Fully condensed, aligned at the cell equator',
+    chromosome:'Each chromosome attached to spindle fibers from both poles',
+    structures:['Metaphase plate','Spindle fibers','Kinetochores'],
+    quickCheck:{q:'Where do chromosomes align during metaphase?', options:['At each pole of the cell','At the metaphase plate, the center of the cell','Inside the nucleolus','Along the cell membrane'], correct:1, explain:'Chromosomes line up at the metaphase plate — the equator of the cell — ensuring each daughter cell will receive one chromatid from every chromosome.'}
+  },
+  {
+    id:'anaphase', name:'Anaphase', group:'Mitosis', color:'var(--anaphase)', hex:'#c58bff',
+    tagline:'Sister chromatids separate',
+    desc:'Sister chromatids separate at the centromere and move toward opposite ends of the cell, pulled by shortening spindle fibers.',
+    events:['Centromeres split','Sister chromatids separate','Chromatids move to opposite poles'],
+    dna:'Separated chromatids, now individual chromosomes, moving apart',
+    chromosome:'Single-chromatid chromosomes migrating to each pole',
+    structures:['Spindle fibers (shortening)','Kinetochores','Centromere (split)'],
+    quickCheck:{q:'What would happen if sister chromatids failed to separate correctly?', options:['Nothing, division proceeds normally','A daughter cell could receive an abnormal number of chromosomes','The cell would immediately repair itself','Cytokinesis would speed up'], correct:1, explain:'Errors in chromatid separation (nondisjunction) can cause a daughter cell to gain or lose a chromosome, a problem cell-cycle checkpoints normally catch.'}
+  },
+  {
+    id:'telophase', name:'Telophase', group:'Mitosis', color:'var(--telophase)', hex:'#6de0ff',
+    tagline:'One cell → Two nuclei',
+    desc:'Chromosomes reach opposite poles and begin to decondense, nuclear envelopes reform around each set, and two distinct nuclei appear within the still-single cell.',
+    events:['Chromosomes reach poles','Chromosomes decondense','Nuclear envelopes reform','Two nuclei form'],
+    dna:'Decondensing back into chromatin inside each new nucleus',
+    chromosome:'Full chromosome set present at each pole',
+    structures:['Reforming nuclear envelopes','Decondensing chromatin','Spindle disassembling'],
+    quickCheck:{q:'What forms during telophase?', options:['A single nucleus','Two nuclei within one cell','Two fully separate daughter cells','A metaphase plate'], correct:1, explain:'Telophase produces two nuclei inside what is still one cell — the cytoplasm has not yet divided, which is the job of cytokinesis.'}
+  },
+  {
+    id:'cytokinesis', name:'Cytokinesis', group:'Cytokinesis', color:'var(--cyto)', hex:'#ff4f81',
+    tagline:'Two daughter cells',
+    desc:'The cytoplasm physically divides. Animal cells pinch inward at a cleavage furrow; plant cells build a new cell plate down the middle. The result is two separate daughter cells.',
+    events:['Cleavage furrow forms (animal cells)','Cell plate forms (plant cells)','Cytoplasm divides completely'],
+    dna:'One complete, identical set in each daughter cell',
+    chromosome:'Decondensed chromatin, one full set per new nucleus',
+    structures:['Cleavage furrow','Actin ring (animal)','Cell plate (plant)'],
+    quickCheck:{q:'How does cytokinesis differ between animal and plant cells?', options:['Animal cells use a cell plate; plant cells use a cleavage furrow','Animal cells use a cleavage furrow; plant cells build a cell plate','There is no difference','Plant cells do not undergo cytokinesis'], correct:1, explain:'Animal cells divide by pinching inward at a cleavage furrow. Plant cells, constrained by a rigid cell wall, instead build a new cell plate that becomes a dividing wall.'}
+  }
+];
+
+const QUIZ_BANK = [
+  {topic:'Interphase', q:'During which phase is DNA replicated?', options:['G1','S','G2','M'], correct:1, explain:'DNA replication happens during S phase, between G1 and G2.'},
+  {topic:'Interphase', q:'Interphase is best described as:', options:['A resting phase with no activity','An active period of growth, function, and preparation for division','Only the time when the nucleus divides','Only the time when DNA is copied'], correct:1, explain:'Interphase (G1, S, G2) is metabolically active — the cell grows, functions normally, and replicates DNA, despite the older idea of it being a "resting" phase.'},
+  {topic:'Mitosis stages', q:'Chromosomes align at the metaphase plate during:', options:['Prophase','Metaphase','Anaphase','Telophase'], correct:1, explain:'Metaphase is defined by chromosome alignment at the cell equator.'},
+  {topic:'Mitosis stages', q:'Sister chromatids separate during:', options:['Prophase','Metaphase','Anaphase','Telophase'], correct:2, explain:'Anaphase is when centromeres split and sister chromatids move to opposite poles.'},
+  {topic:'Mitosis stages', q:'The nuclear envelope reforms during:', options:['Prophase','Anaphase','Telophase','S phase'], correct:2, explain:'Telophase re-establishes nuclear envelopes around the two separated sets of chromosomes.'},
+  {topic:'Cytokinesis', q:'A cleavage furrow is characteristic of cytokinesis in:', options:['Plant cells','Animal cells','Bacteria','Neither'], correct:1, explain:'Animal cells lack a rigid cell wall and divide by pinching inward at a cleavage furrow.'},
+  {topic:'Cytokinesis', q:'Mitosis and cytokinesis differ in that:', options:['They are the same process','Mitosis divides the nucleus, cytokinesis divides the cytoplasm','Cytokinesis divides the nucleus, mitosis divides the cytoplasm','Mitosis only happens in plants'], correct:1, explain:'Mitosis is nuclear division; cytokinesis is the physical division of the cytoplasm into two cells.'},
+  {topic:'Cell Cycle Checkpoints', q:'What is the primary role of cell-cycle checkpoints?', options:['To speed up cell division','To monitor conditions and control whether the cycle proceeds','To physically divide the cytoplasm','To replicate DNA'], correct:1, explain:'Checkpoints (G1, G2, and the M/spindle checkpoint) monitor cell conditions and can pause the cycle for repair or halt it entirely.'},
+  {topic:'Cell Cycle Checkpoints', q:'A cell has damaged DNA before entering S phase. What should happen?', options:['Continue to S phase anyway','Repair the DNA before replication proceeds','Skip straight to mitosis','Undergo cytokinesis immediately'], correct:1, explain:'The G1 checkpoint should halt the cycle so damaged DNA can be repaired before replication, preventing the damage from being copied.'},
+  {topic:'Cancer', q:'Uncontrolled cell division is most closely associated with:', options:['Normal checkpoint function','Checkpoint failure or abnormal regulation of the cell cycle','Excess cytokinesis only','A shortage of nucleotides'], correct:1, explain:'Cancer involves abnormal regulation of cell growth and division, often linked to checkpoints failing to stop cells with damage or errors.'},
+  {topic:'Cancer', q:'Which best describes cancer biologically?', options:['A single disease with one identical pathway in all cases','A complex group of diseases involving abnormal regulation of cell growth and division','A normal and harmless variation of the cell cycle','A phase of the cell cycle'], correct:1, explain:'Cancer is not one uniform pathway — it is a complex group of diseases that share abnormal regulation of growth and division.'},
+  {topic:'Mitosis stages', q:'Put these in order: Metaphase, Prophase, Telophase, Anaphase. What is the correct sequence?', options:['Prophase, Metaphase, Anaphase, Telophase','Metaphase, Prophase, Anaphase, Telophase','Prophase, Anaphase, Metaphase, Telophase','Telophase, Metaphase, Anaphase, Prophase'], correct:0, explain:'The correct order of mitosis is Prophase → Metaphase → Anaphase → Telophase.'},
+  {topic:'Interphase', q:'Sister chromatids are first produced during:', options:['G1','S phase','Prophase','Anaphase'], correct:1, explain:'Sister chromatids are created when DNA is replicated during S phase, before condensation in prophase.'}
+];
+
+const STAGE_ORDER = STAGES.map(s=>s.id);
+
+/* =========================================================
+   STATE
+========================================================= */
+let currentView = 'home';
+let explorerIndex = 0;
+let tmPlaying = false, tmTimer = null;
+let cytoMode = 'animal';
+
+const progressState = {
+  quickChecksAnswered:0, quickChecksCorrect:0, quickChecksTotal: STAGES.length,
+  seqCompletedCorrectly:false,
+  slideAttempts:0, slideCorrect:0, slideTotal:5,
+  quizTaken:false, quizScore:0, quizTotal:QUIZ_BANK.length
+};
+
+/* =========================================================
+   HELPERS
+========================================================= */
+function goTo(view){
+  currentView = view;
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('view-'+view).classList.add('active');
+  document.querySelectorAll('#navlinks button').forEach(b=>b.classList.toggle('active', b.dataset.nav===view));
+  if(view==='explorer'){ renderExplorer(); }
+  if(view==='lab'){ initLab(); }
+  if(view==='quiz'){ initQuiz(); }
+  if(view==='progress'){ renderProgress(); }
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+document.querySelectorAll('#navlinks button').forEach(b=>b.addEventListener('click', ()=>goTo(b.dataset.nav)));
+
+let toastTimer;
+function showSoon(name){
+  const t = document.getElementById('toast');
+  t.textContent = name + ' is a Phase 2 feature — coming soon. Try Explore Cell Cycle or the Mitosis Lab now.';
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove('show'), 3200);
+}
+
+/* =========================================================
+   WHEEL (used on home + explorer)
+========================================================= */
+function buildWheel(containerId, size, onClick, activeId){
+  const c = document.getElementById(containerId);
+  const r = size/2 - 14;
+  const cx = size/2, cy = size/2;
+  const n = STAGES.length;
+  let svg = `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">`;
+  const gap = 0.035;
+  STAGES.forEach((s,i)=>{
+    const a0 = (i/n)*2*Math.PI - Math.PI/2 + gap;
+    const a1 = ((i+1)/n)*2*Math.PI - Math.PI/2 - gap;
+    const x0 = cx + r*Math.cos(a0), y0 = cy + r*Math.sin(a0);
+    const x1 = cx + r*Math.cos(a1), y1 = cy + r*Math.sin(a1);
+    const ix0 = cx + (r-38)*Math.cos(a0), iy0 = cy + (r-38)*Math.sin(a0);
+    const ix1 = cx + (r-38)*Math.cos(a1), iy1 = cy + (r-38)*Math.sin(a1);
+    const mid = (a0+a1)/2;
+    const lx = cx + (r-19)*Math.cos(mid), ly = cy + (r-19)*Math.sin(mid);
+    const isActive = s.id === activeId;
+    svg += `<path class="wheel-seg" data-id="${s.id}" d="M${ix0},${iy0} L${x0},${y0} A${r},${r} 0 0 1 ${x1},${y1} L${ix1},${iy1} A${r-38},${r-38} 0 0 0 ${ix0},${iy0} Z"
+      fill="${s.hex}" opacity="${isActive?1:0.72}" stroke="${isActive?'#fff':'transparent'}" stroke-width="2"></path>`;
+    svg += `<text x="${lx}" y="${ly}" text-anchor="middle" dominant-baseline="middle" transform="rotate(${mid*180/Math.PI+90},${lx},${ly})">${s.name.split(' ')[0]}</text>`;
+  });
+  svg += `<circle cx="${cx}" cy="${cy}" r="${r-38-6}" fill="#0d141c" stroke="#1e2b36"/>`;
+  svg += `</svg>`;
+  c.innerHTML = svg;
+  c.querySelectorAll('.wheel-seg').forEach(seg=>{
+    seg.addEventListener('click', ()=> onClick(seg.dataset.id));
+  });
+  // center label overlay
+  const label = document.createElement('div');
+  label.className = 'wheel-center-label';
+  label.style.width = size+'px';
+  label.style.top = '0'; label.style.left='0';
+  label.style.display='flex'; label.style.flexDirection='column'; label.style.alignItems='center'; label.style.justifyContent='center';
+  label.style.height = size+'px';
+  const activeStage = STAGES.find(s=>s.id===activeId) || STAGES[0];
+  label.innerHTML = `<div class="k">Now viewing</div><div class="v" style="color:${activeStage.hex}">${activeStage.name}</div>`;
+  c.style.position='relative';
+  c.appendChild(label);
+}
+
+function renderHomeWheel(){
+  buildWheel('home-wheel', 320, (id)=>{ goTo('explorer'); explorerIndex = STAGE_ORDER.indexOf(id); renderExplorer(); }, STAGES[explorerIndex].id);
+}
+
+/* =========================================================
+   CELL SCENE (SVG per stage)
+========================================================= */
+function chromosomeX(cx,cy,scale,color,rot){
+  return `<g transform="translate(${cx},${cy}) rotate(${rot}) scale(${scale})" >
+    <path d="M-10,-14 L10,14 M10,-14 L-10,14" stroke="${color}" stroke-width="5" stroke-linecap="round"/>
+  </g>`;
+}
+function chromatidRod(cx,cy,scale,color,rot){
+  return `<g transform="translate(${cx},${cy}) rotate(${rot}) scale(${scale})">
+    <rect x="-3" y="-13" width="6" height="26" rx="3" fill="${color}"/>
+  </g>`;
+}
+function sceneFor(stageId){
+  const s = STAGES.find(x=>x.id===stageId);
+  const W=520,H=280, cx=W/2, cy=H/2;
+  let inner='';
+  const cell = (rx,ry)=>`<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="#0f1a22" stroke="#233240" stroke-width="2"/>`;
+
+  if(stageId==='g1'){
+    inner = cell(140,95) + `
+      <circle cx="${cx}" cy="${cy}" r="52" fill="#132532" stroke="#274357" stroke-width="2"/>
+      <path d="M${cx-24},${cy-10} q10,-14 24,-4 t22,10" stroke="#5ec8ff" stroke-width="3" fill="none" opacity="0.8"/>
+      <circle cx="${cx-70}" cy="${cy+40}" r="6" fill="#b98cff"/>
+      <circle cx="${cx+66}" cy="${cy-45}" r="5" fill="#b98cff"/>
+      <circle cx="${cx+80}" cy="${cy+30}" r="4" fill="#b98cff"/>
+      <circle cx="${cx-90}" cy="${cy-20}" r="4" fill="#b98cff"/>`;
+  } else if(stageId==='s'){
+    inner = cell(140,95) + `
+      <circle cx="${cx}" cy="${cy}" r="55" fill="#132532" stroke="#274357" stroke-width="2"/>
+      <g stroke="#5ec8ff" stroke-width="3" fill="none">
+        <path d="M${cx-28},${cy-18} q7,-8 14,0 t14,0"/>
+        <path d="M${cx-28},${cy-10} q7,8 14,0 t14,0"/>
+        <path d="M${cx-28},${cy+2} q7,-8 14,0 t14,0"/>
+        <path d="M${cx-28},${cy+10} q7,8 14,0 t14,0"/>
+        <path d="M${cx-28},${cy+22} q7,-8 14,0 t14,0"/>
+      </g>
+      <text x="${cx}" y="${cy+45}" text-anchor="middle" fill="#7cf29c" font-size="11" font-family="IBM Plex Mono">replicating...</text>`;
+  } else if(stageId==='g2'){
+    inner = cell(150,100) + `
+      <circle cx="${cx}" cy="${cy}" r="56" fill="#132532" stroke="#274357" stroke-width="2"/>
+      ${[-30,-10,10,30].map(o=>`<path d="M${cx-26},${cy+o} q8,-10 16,0 t16,0" stroke="#ffd166" stroke-width="3" fill="none"/>`).join('')}
+      <circle cx="${cx-95}" cy="${cy-50}" r="6" fill="#c58bff"/><circle cx="${cx-90}" cy="${cy-42}" r="6" fill="#c58bff"/>
+      <text x="${cx}" y="${cy-72}" text-anchor="middle" fill="#59e08a" font-size="11" font-family="IBM Plex Mono">✓ DNA check passed</text>`;
+  } else if(stageId==='prophase'){
+    inner = cell(150,100) + `
+      <ellipse cx="${cx}" cy="${cy}" rx="60" ry="45" fill="none" stroke="#274357" stroke-width="2" stroke-dasharray="4 5" opacity="0.6"/>
+      ${chromosomeX(cx-25,cy-10,1,'#ff9e6d',15)}
+      ${chromosomeX(cx+18,cy+8,1,'#ff9e6d',-20)}
+      ${chromosomeX(cx-5,cy+22,0.9,'#ff9e6d',60)}
+      <circle cx="${cx-95}" cy="${cy}" r="7" fill="#ffc168"/>
+      <circle cx="${cx+95}" cy="${cy}" r="7" fill="#ffc168"/>
+      <line x1="${cx-95}" y1="${cy}" x2="${cx-20}" y2="${cy-30}" stroke="#ffc168" stroke-width="1.5" opacity="0.7"/>
+      <line x1="${cx+95}" y1="${cy}" x2="${cx+20}" y2="${cy+30}" stroke="#ffc168" stroke-width="1.5" opacity="0.7"/>`;
+  } else if(stageId==='metaphase'){
+    inner = cell(150,100) + `
+      <line x1="${cx}" y1="${cy-70}" x2="${cx}" y2="${cy+70}" stroke="#ff6d9e" stroke-width="1" stroke-dasharray="3 4" opacity="0.5"/>
+      ${[-45,-25,-5,15,35].map(y=>chromosomeX(cx,cy+y,0.9,'#ff6d9e',90)).join('')}
+      <circle cx="${cx-100}" cy="${cy}" r="7" fill="#ffc168"/><circle cx="${cx+100}" cy="${cy}" r="7" fill="#ffc168"/>
+      ${[-45,-25,-5,15,35].map(y=>`<line x1="${cx-100}" y1="${cy}" x2="${cx-8}" y2="${cy+y}" stroke="#ffc168" stroke-width="1" opacity="0.5"/><line x1="${cx+100}" y1="${cy}" x2="${cx+8}" y2="${cy+y}" stroke="#ffc168" stroke-width="1" opacity="0.5"/>`).join('')}`;
+  } else if(stageId==='anaphase'){
+    inner = cell(155,100) + `
+      ${[-45,-25,-5,15,35].map(y=>chromatidRod(cx-55,cy+y,1,'#c58bff',90)).join('')}
+      ${[-45,-25,-5,15,35].map(y=>chromatidRod(cx+55,cy+y,1,'#c58bff',90)).join('')}
+      <circle cx="${cx-100}" cy="${cy}" r="7" fill="#ffc168"/><circle cx="${cx+100}" cy="${cy}" r="7" fill="#ffc168"/>
+      <path d="M${cx-30},${cy} l-14,0 m8,-5 l6,5 l-6,5" stroke="#c58bff" stroke-width="2" fill="none"/>
+      <path d="M${cx+30},${cy} l14,0 m-8,-5 l6,5 l-6,5" stroke="#c58bff" stroke-width="2" fill="none"/>`;
+  } else if(stageId==='telophase'){
+    inner = cell(160,100) + `
+      <ellipse cx="${cx-60}" cy="${cy}" rx="45" ry="55" fill="none" stroke="#6de0ff" stroke-width="2" stroke-dasharray="4 4"/>
+      <ellipse cx="${cx+60}" cy="${cy}" rx="45" ry="55" fill="none" stroke="#6de0ff" stroke-width="2" stroke-dasharray="4 4"/>
+      ${[-15,0,15].map(y=>`<path d="M${cx-75},${cy+y} q8,-8 16,0 t16,0" stroke="#6de0ff" stroke-width="3" fill="none"/>`).join('')}
+      ${[-15,0,15].map(y=>`<path d="M${cx+45},${cy+y} q8,-8 16,0 t16,0" stroke="#6de0ff" stroke-width="3" fill="none"/>`).join('')}`;
+  } else if(stageId==='cytokinesis'){
+    if(cytoMode==='animal'){
+      inner = `
+      <path d="M${cx-140},${cy} a140,90 0 0 1 130,-88 a20,90 0 0 0 20,88 a20,90 0 0 0 -20,88 a140,90 0 0 1 -130,-88 Z" fill="#0f1a22" stroke="#233240" stroke-width="2"/>
+      <path d="M${cx+140},${cy} a140,90 0 0 0 -130,-88 a20,90 0 0 1 -20,88 a20,90 0 0 1 20,88 a140,90 0 0 0 130,-88 Z" fill="#0f1a22" stroke="#233240" stroke-width="2"/>
+      <ellipse cx="${cx-70}" cy="${cy}" rx="40" ry="55" fill="#132532" stroke="#274357" stroke-width="2"/>
+      <ellipse cx="${cx+70}" cy="${cy}" rx="40" ry="55" fill="#132532" stroke="#274357" stroke-width="2"/>
+      <text x="${cx}" y="${cy-100}" text-anchor="middle" fill="#ff4f81" font-size="11" font-family="IBM Plex Mono">cleavage furrow</text>`;
+    } else {
+      inner = cell(150,95) + `
+      <line x1="${cx}" y1="${cy-80}" x2="${cx}" y2="${cy+80}" stroke="#7cf29c" stroke-width="5"/>
+      <ellipse cx="${cx-70}" cy="${cy}" rx="45" ry="60" fill="#132532" stroke="#274357" stroke-width="2"/>
+      <ellipse cx="${cx+70}" cy="${cy}" rx="45" ry="60" fill="#132532" stroke="#274357" stroke-width="2"/>
+      <text x="${cx}" y="${cy-100}" text-anchor="middle" fill="#7cf29c" font-size="11" font-family="IBM Plex Mono">cell plate</text>`;
+    }
+  }
+  let toggle='';
+  if(stageId==='cytokinesis'){
+    toggle = `<div style="display:flex; gap:8px; margin-top:12px;">
+      <button class="btn btn-ghost" style="padding:6px 14px; font-size:0.78rem;" onclick="setCytoMode('animal')">${cytoMode==='animal'?'● ':''}Animal Cell</button>
+      <button class="btn btn-ghost" style="padding:6px 14px; font-size:0.78rem;" onclick="setCytoMode('plant')">${cytoMode==='plant'?'● ':''}Plant Cell</button>
+    </div>`;
+  }
+  return `<svg width="100%" viewBox="0 0 ${W} ${H}" style="max-width:480px;">${inner}</svg>` + toggle;
+}
+function setCytoMode(mode){ cytoMode = mode; renderExplorer(); }
+
+/* =========================================================
+   EXPLORER VIEW
+========================================================= */
+function renderExplorer(){
+  const stage = STAGES[explorerIndex];
+  buildWheel('explorer-wheel', 300, (id)=>{ explorerIndex = STAGE_ORDER.indexOf(id); renderExplorer(); }, stage.id);
+
+  document.getElementById('scene-svg').innerHTML = sceneFor(stage.id);
+  document.getElementById('scene-caption').textContent = stage.tagline;
+
+  const p = document.getElementById('detail-panel');
+  p.innerHTML = `
+    <div class="stage-pill-row">${STAGES.map((s,i)=>`<button class="stage-pill ${i===explorerIndex?'active':''}" style="${i===explorerIndex?`background:${s.hex}; border-color:${s.hex};`:''}" onclick="explorerIndex=${i}; renderExplorer();">${s.name.split(' ')[0]}</button>`).join('')}</div>
+    <div class="detail-header"><span class="dot" style="background:${stage.hex}"></span><h3>${stage.name}</h3></div>
+    <div class="detail-group">${stage.group}</div>
+    <p style="margin-top:10px;">${stage.desc}</p>
+    <div class="stat-grid">
+      <div class="stat"><div class="k">DNA status</div><div class="v">${stage.dna}</div></div>
+      <div class="stat"><div class="k">Chromosome status</div><div class="v">${stage.chromosome}</div></div>
+    </div>
+    <div class="k mono" style="font-size:0.68rem; color:var(--muted); text-transform:uppercase; letter-spacing:1px;">Main events</div>
+    <ul class="event-list">${stage.events.map(e=>`<li>${e}</li>`).join('')}</ul>
+    <div class="k mono" style="font-size:0.68rem; color:var(--muted); text-transform:uppercase; letter-spacing:1px;">Important structures</div>
+    <div class="struct-tags">${stage.structures.map(st=>`<span class="struct-tag">${st}</span>`).join('')}</div>
+
+    <div class="quickcheck" id="qc-box">
+      <h4>Quick Check</h4>
+      <div style="font-size:0.9rem; margin-bottom:10px;">${stage.quickCheck.q}</div>
+      <div class="qc-opts" id="qc-opts">
+        ${stage.quickCheck.options.map((o,i)=>`<button class="qc-opt" data-i="${i}" onclick="answerQuickCheck(${i})">${o}</button>`).join('')}
+      </div>
+      <div class="qc-feedback" id="qc-feedback"></div>
+    </div>
+  `;
+
+  document.getElementById('tm-slider').value = explorerIndex;
+  document.getElementById('tm-labels').innerHTML = STAGES.map((s,i)=>`<span style="color:${i===explorerIndex?s.hex:'var(--muted)'}">${s.name.split(' ')[0]}</span>`).join('');
+}
+
+let qcAnswered = {};
+function answerQuickCheck(i){
+  const stage = STAGES[explorerIndex];
+  if(qcAnswered[stage.id]) return;
+  qcAnswered[stage.id] = true;
+  const correct = stage.quickCheck.correct;
+  document.querySelectorAll('#qc-opts .qc-opt').forEach((btn,idx)=>{
+    if(idx===correct) btn.classList.add('correct');
+    else if(idx===i) btn.classList.add('wrong');
+  });
+  const fb = document.getElementById('qc-feedback');
+  fb.classList.add('show', i===correct?'ok':'no');
+  fb.textContent = stage.quickCheck.explain;
+  progressState.quickChecksAnswered++;
+  if(i===correct) progressState.quickChecksCorrect++;
+}
+
+document.getElementById('tm-slider').addEventListener('input', (e)=>{
+  explorerIndex = parseInt(e.target.value);
+  renderExplorer();
+});
+document.getElementById('tm-prev').addEventListener('click', ()=>{ explorerIndex = (explorerIndex+7)%8; renderExplorer(); });
+document.getElementById('tm-next').addEventListener('click', ()=>{ explorerIndex = (explorerIndex+1)%8; renderExplorer(); });
+document.getElementById('tm-reset').addEventListener('click', ()=>{ explorerIndex = 0; tmPlaying=false; clearInterval(tmTimer); document.getElementById('tm-play').textContent='▶'; renderExplorer(); });
+document.getElementById('tm-play').addEventListener('click', (e)=>{
+  tmPlaying = !tmPlaying;
+  e.target.textContent = tmPlaying ? '⏸' : '▶';
+  if(tmPlaying){
+    tmTimer = setInterval(()=>{
+      explorerIndex = (explorerIndex+1)%8;
+      renderExplorer();
+    }, 1800);
+  } else {
+    clearInterval(tmTimer);
+  }
+});
+
+/* =========================================================
+   MITOSIS LAB
+========================================================= */
+document.querySelectorAll('.lab-tab').forEach(t=>t.addEventListener('click', ()=>{
+  document.querySelectorAll('.lab-tab').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active');
+  document.querySelectorAll('.lab-pane').forEach(p=>p.classList.remove('active'));
+  document.getElementById('pane-'+t.dataset.tab).classList.add('active');
+}));
+
+let seqCards = [];
+function shuffle(arr){ const a=[...arr]; for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+
+function initLab(){
+  seqCards = shuffle(STAGES);
+  const tray = document.getElementById('seq-tray');
+  const slots = document.getElementById('seq-slots');
+  tray.innerHTML=''; slots.innerHTML='';
+  seqCards.forEach(s=>{
+    const el = document.createElement('div');
+    el.className='seq-card'; el.draggable=true; el.textContent=s.name.split(' ')[0].toUpperCase();
+    el.style.background = s.hex; el.dataset.id = s.id;
+    el.addEventListener('dragstart', e=>{ e.dataTransfer.setData('text/plain', s.id); el.classList.add('dragging'); });
+    el.addEventListener('dragend', ()=> el.classList.remove('dragging'));
+    tray.appendChild(el);
+  });
+  for(let i=0;i<8;i++){
+    const slot = document.createElement('div');
+    slot.className='slot-placeholder'; slot.textContent = (i+1);
+    slot.dataset.index = i;
+    slot.addEventListener('dragover', e=>e.preventDefault());
+    slot.addEventListener('drop', e=>{
+      e.preventDefault();
+      const id = e.dataTransfer.getData('text/plain');
+      const card = document.querySelector(`.seq-card[data-id="${id}"]`);
+      if(card && slot.children.length===0){
+        slot.innerHTML=''; slot.appendChild(card);
+      }
+    });
+    slots.appendChild(slot);
+  }
+  tray.addEventListener('dragover', e=>e.preventDefault());
+  tray.addEventListener('drop', e=>{
+    e.preventDefault();
+    const id = e.dataTransfer.getData('text/plain');
+    const card = document.querySelector(`.seq-card[data-id="${id}"]`);
+    if(card) tray.appendChild(card);
+  });
+  document.getElementById('seq-result').classList.remove('show','ok','no');
+
+  buildSlideGrid();
+}
+
+document.getElementById('seq-check').addEventListener('click', ()=>{
+  const slots = [...document.querySelectorAll('#seq-slots .slot-placeholder')];
+  const ids = slots.map(s=> s.querySelector('.seq-card') ? s.querySelector('.seq-card').dataset.id : null);
+  const result = document.getElementById('seq-result');
+  if(ids.includes(null)){
+    result.className='lab-result show no'; result.textContent='Fill every slot before checking — one card per position.';
+    return;
+  }
+  const isCorrect = ids.every((id,i)=> id===STAGE_ORDER[i]);
+  if(isCorrect){
+    result.className='lab-result show ok'; result.textContent='Correct! G1 → S → G2 → Prophase → Metaphase → Anaphase → Telophase → Cytokinesis.';
+    progressState.seqCompletedCorrectly = true;
+  } else {
+    result.className='lab-result show no'; result.textContent='Not quite — remember interphase (G1, S, G2) comes before mitosis, and mitosis ends before cytokinesis. Try again.';
+  }
+});
+document.getElementById('seq-reset').addEventListener('click', initLab);
+
+// Slide identification — 5 sample "cells" each pre-assigned a stage
+const SLIDE_SAMPLES_IDS = ['prophase','metaphase','anaphase','telophase','g1'];
+function slideCellSvg(stageId){
+  const s = STAGES.find(x=>x.id===stageId);
+  const cx=60, cy=55;
+  let content='';
+  if(stageId==='g1'){
+    content = `<circle cx="${cx}" cy="${cy}" r="18" fill="#132532" stroke="#5ec8ff" stroke-width="1.5"/>`;
+  } else if(stageId==='prophase'){
+    content = chromosomeX(cx-8,cy-6,0.8,'#ff9e6d',20)+chromosomeX(cx+8,cy+6,0.8,'#ff9e6d',-30);
+  } else if(stageId==='metaphase'){
+    content = [-14,-5,5,14].map(y=>chromosomeX(cx,cy+y,0.65,'#ff6d9e',90)).join('')+`<line x1="${cx}" y1="${cy-24}" x2="${cx}" y2="${cy+24}" stroke="#ff6d9e" stroke-dasharray="2 3" stroke-width="0.5"/>`;
+  } else if(stageId==='anaphase'){
+    content = [-12,0,12].map(y=>chromatidRod(cx-22,cy+y,0.7,'#c58bff',90)).join('')+[-12,0,12].map(y=>chromatidRod(cx+22,cy+y,0.7,'#c58bff',90)).join('');
+  } else if(stageId==='telophase'){
+    content = `<ellipse cx="${cx-18}" cy="${cy}" rx="14" ry="17" fill="none" stroke="#6de0ff" stroke-width="1.5"/><ellipse cx="${cx+18}" cy="${cy}" rx="14" ry="17" fill="none" stroke="#6de0ff" stroke-width="1.5"/>`;
+  }
+  return `<svg viewBox="0 0 120 110"><ellipse cx="60" cy="55" rx="52" ry="42" fill="#0f1a22" stroke="#233240"/>${content}</svg>`;
+}
+const SLIDE_LABELS = ['Interphase','Prophase','Metaphase','Anaphase','Telophase'];
+function buildSlideGrid(){
+  const grid = document.getElementById('slide-grid');
+  grid.innerHTML='';
+  progressState.slideAttempts = 0; progressState.slideCorrect = 0;
+  const order = shuffle(SLIDE_SAMPLES_IDS);
+  order.forEach((stageId,idx)=>{
+    const card = document.createElement('div');
+    card.className='slide-card';
+    card.innerHTML = `${slideCellSvg(stageId)}
+      <div class="id-btns">${SLIDE_LABELS.map(l=>`<button data-l="${l}">${l}</button>`).join('')}</div>
+      <div class="status"></div>`;
+    const correctLabel = stageId==='g1' ? 'Interphase' : STAGES.find(s=>s.id===stageId).name;
+    card.querySelectorAll('.id-btns button').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        if(card.dataset.done) return;
+        card.dataset.done='1';
+        progressState.slideAttempts++;
+        const status = card.querySelector('.status');
+        if(btn.textContent===correctLabel){
+          btn.classList.add('correct'); status.textContent='Correct — '+correctLabel; progressState.slideCorrect++;
+        } else {
+          btn.classList.add('wrong'); status.textContent='Actually: '+correctLabel;
+          [...card.querySelectorAll('.id-btns button')].find(b=>b.textContent===correctLabel).classList.add('correct');
+        }
+        updateSlideScore();
+      });
+    });
+    grid.appendChild(card);
+  });
+  updateSlideScore();
+}
+function updateSlideScore(){
+  document.getElementById('slide-score').textContent = `Identified: ${progressState.slideAttempts} / ${progressState.slideTotal}  ·  Correct: ${progressState.slideCorrect}`;
+}
+
+/* =========================================================
+   QUIZ
+========================================================= */
+let quizIndex = 0, quizScore = 0, quizAnswers = [];
+function initQuiz(){
+  quizIndex = 0; quizScore = 0; quizAnswers = [];
+  renderQuizQuestion();
+}
+function renderQuizQuestion(){
+  const body = document.getElementById('quiz-body');
+  if(quizIndex >= QUIZ_BANK.length){
+    renderQuizResults();
+    return;
+  }
+  const q = QUIZ_BANK[quizIndex];
+  body.innerHTML = `
+    <div class="quiz-card">
+      <div class="quiz-progress">Question ${quizIndex+1} of ${QUIZ_BANK.length} · ${q.topic}</div>
+      <div class="quiz-q">${q.q}</div>
+      <div class="quiz-opts" id="quiz-opts">
+        ${q.options.map((o,i)=>`<button class="quiz-opt" data-i="${i}">${o}</button>`).join('')}
+      </div>
+      <div class="quiz-explain" id="quiz-explain"></div>
+      <div class="quiz-nextbar"><button class="btn btn-primary" id="quiz-next" style="display:none;">Next →</button></div>
+    </div>`;
+  document.querySelectorAll('#quiz-opts .quiz-opt').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      if(btn.dataset.locked) return;
+      document.querySelectorAll('#quiz-opts .quiz-opt').forEach(b=>b.dataset.locked='1');
+      const i = parseInt(btn.dataset.i);
+      const correct = q.correct;
+      document.querySelectorAll('#quiz-opts .quiz-opt').forEach((b,idx)=>{
+        if(idx===correct) b.classList.add('correct');
+        else if(idx===i) b.classList.add('wrong');
+      });
+      const isRight = i===correct;
+      if(isRight) quizScore++;
+      quizAnswers.push({topic:q.topic, correct:isRight});
+      const ex = document.getElementById('quiz-explain');
+      ex.classList.add('show'); ex.textContent = q.explain;
+      document.getElementById('quiz-next').style.display='inline-block';
+    });
+  });
+  document.getElementById('quiz-next').addEventListener('click', ()=>{ quizIndex++; renderQuizQuestion(); });
+}
+function renderQuizResults(){
+  const body = document.getElementById('quiz-body');
+  const pct = Math.round((quizScore/QUIZ_BANK.length)*100);
+  const topicMisses = {};
+  quizAnswers.forEach(a=>{ if(!a.correct) topicMisses[a.topic] = (topicMisses[a.topic]||0)+1; });
+  const weakTopics = Object.keys(topicMisses).sort((a,b)=>topicMisses[b]-topicMisses[a]);
+  progressState.quizTaken = true; progressState.quizScore = quizScore;
+
+  body.innerHTML = `
+    <div class="quiz-card">
+      <div class="score-ring-wrap">
+        <div class="score-big" style="color:${pct>=70?'var(--go)':pct>=50?'var(--pause)':'var(--stop)'}">${quizScore}/${QUIZ_BANK.length}</div>
+        <div class="mono" style="color:var(--muted); font-size:0.85rem;">${pct}% correct</div>
+      </div>
+      ${weakTopics.length ? `
+        <div style="font-size:0.85rem; color:var(--muted); margin-bottom:8px;">Needs review:</div>
+        <div class="review-list">${weakTopics.map(t=>`<span class="review-chip">${t}</span>`).join('')}</div>
+      ` : `<p style="text-align:center; color:var(--go);">Strong across every topic — nice work.</p>`}
+      <div style="display:flex; gap:10px; justify-content:center; margin-top:18px;">
+        <button class="btn btn-ghost" onclick="initQuiz()">Retake Quiz</button>
+        <button class="btn btn-primary" onclick="goTo('explorer')">Review in Explorer</button>
+      </div>
+    </div>`;
+}
+
+/* =========================================================
+   PROGRESS
+========================================================= */
+function renderProgress(){
+  const qcPct = progressState.quickChecksTotal ? Math.round((progressState.quickChecksCorrect/progressState.quickChecksTotal)*100) : 0;
+  const slidePct = progressState.slideAttempts ? Math.round((progressState.slideCorrect/progressState.slideAttempts)*100) : 0;
+  const quizPct = progressState.quizTaken ? Math.round((progressState.quizScore/progressState.quizTotal)*100) : 0;
+  const seqPct = progressState.seqCompletedCorrectly ? 100 : 0;
+  const overall = Math.round((qcPct+slidePct+quizPct+seqPct)/4);
+
+  const rows = [
+    {label:'Overall Mastery', pct:overall, note:'Average across all activities'},
+    {label:'Explorer Quick Checks', pct:qcPct, note:`${progressState.quickChecksCorrect}/${progressState.quickChecksTotal} correct`},
+    {label:'Mitosis Sequencing', pct:seqPct, note: progressState.seqCompletedCorrectly ? 'Completed correctly' : 'Not yet completed'},
+    {label:'Slide Identification', pct:slidePct, note:`${progressState.slideCorrect}/${progressState.slideAttempts||0} correct`},
+    {label:'Cell Cycle Quiz', pct:quizPct, note: progressState.quizTaken ? `${progressState.quizScore}/${progressState.quizTotal}` : 'Not yet taken'},
+  ];
+  document.getElementById('progress-grid').innerHTML = rows.map(r=>`
+    <div class="prog-card">
+      <div class="label">${r.label}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${r.pct}%"></div></div>
+      <div class="pct">${r.pct}% · ${r.note}</div>
+    </div>`).join('');
+}
+
+/* =========================================================
+   INIT
+========================================================= */
+renderHomeWheel();
+</script>
+</body>
+</html>
