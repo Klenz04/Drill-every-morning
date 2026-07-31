@@ -1,554 +1,692 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Virtual Microscope - Mitosis Lab</title>
-    <style>
-        :root {
-            --bg-color: #0f172a;
-            --panel-bg: #1e293b;
-            --accent-color: #38bdf8;
-            --accent-hover: #0284c7;
-            --text-main: #f8fafc;
-            --text-muted: #94a3b8;
-            --success: #22c55e;
-            --error: #ef4444;
-        }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cell Cycle: Deal or No Deal</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Inter:wght@400;600;700&display=swap');
+    
+    body {
+      font-family: 'Inter', sans-serif;
+      background: radial-gradient(circle at center, #1b2735 0%, #090a0f 100%);
+      color: #ffffff;
+      min-height: 100vh;
+    }
 
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        }
+    .font-orbitron {
+      font-family: 'Orbitron', sans-serif;
+    }
 
-        body {
-            background-color: var(--bg-color);
-            color: var(--text-main);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            padding: 20px;
-        }
+    .case-btn {
+      background: linear-gradient(135deg, #f39c12 0%, #d35400 100%);
+      box-shadow: 0 4px 15px rgba(243, 156, 18, 0.4), inset 0 2px 2px rgba(255,255,255,0.4);
+      transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
 
-        .container {
-            display: grid;
-            grid-template-columns: 1fr 340px;
-            gap: 20px;
-            max-width: 1100px;
-            width: 100%;
-            background-color: var(--panel-bg);
-            padding: 24px;
-            border-radius: 16px;
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
-        }
+    .case-btn:hover:not(:disabled) {
+      transform: translateY(-4px) scale(1.03);
+      box-shadow: 0 8px 25px rgba(243, 156, 18, 0.6), inset 0 2px 2px rgba(255,255,255,0.6);
+    }
 
-        /* Microscope Display Area */
-        .viewport-section {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 16px;
-        }
+    .value-card {
+      transition: all 0.3s ease;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
 
-        .lens-outer {
-            width: 440px;
-            height: 440px;
-            border-radius: 50%;
-            background: #000;
-            border: 12px solid #334155;
-            box-shadow: inset 0 0 30px rgba(0,0,0,0.8), 0 10px 15px -3px rgba(0,0,0,0.3);
-            position: relative;
-            overflow: hidden;
-            cursor: grab;
-        }
+    .value-card.eliminated {
+      opacity: 0.2;
+      background: #111;
+      border-color: transparent;
+      text-decoration: line-through;
+      transform: scale(0.95);
+    }
 
-        .lens-outer:active {
-            cursor: grabbing;
-        }
+    .modal-backdrop {
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(8px);
+    }
 
-        #microscopeCanvas {
-            width: 100%;
-            height: 100%;
-            display: block;
-            transition: filter 0.1s ease;
-        }
+    .glow-gold {
+      text-shadow: 0 0 12px rgba(241, 196, 15, 0.7);
+    }
 
-        .reticle {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 100%;
-            height: 100%;
-            transform: translate(-50%, -50%);
-            pointer-events: none;
-            background: 
-                radial-gradient(circle, transparent 60%, rgba(0,0,0,0.4) 100%),
-                linear-gradient(to right, transparent 49.5%, rgba(56, 189, 248, 0.15) 49.5%, rgba(56, 189, 248, 0.15) 50.5%, transparent 50.5%),
-                linear-gradient(to bottom, transparent 49.5%, rgba(56, 189, 248, 0.15) 49.5%, rgba(56, 189, 248, 0.15) 50.5%, transparent 50.5%);
-        }
-
-        /* Controls Panel */
-        .controls-panel {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-
-        .panel-card {
-            background: #0f172a;
-            padding: 16px;
-            border-radius: 12px;
-            border: 1px solid #334155;
-        }
-
-        h2 {
-            font-size: 1.1rem;
-            margin-bottom: 12px;
-            color: var(--accent-color);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .btn-group {
-            display: flex;
-            gap: 8px;
-        }
-
-        .btn {
-            flex: 1;
-            padding: 10px;
-            background: #334155;
-            color: var(--text-main);
-            border: none;
-            border-radius: 6px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .btn:hover {
-            background: #475569;
-        }
-
-        .btn.active {
-            background: var(--accent-color);
-            color: #0f172a;
-        }
-
-        .slider-group {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            margin-top: 10px;
-        }
-
-        .slider-group label {
-            font-size: 0.85rem;
-            color: var(--text-muted);
-            display: flex;
-            justify-content: space-between;
-        }
-
-        input[type="range"] {
-            width: 100%;
-            accent-color: var(--accent-color);
-        }
-
-        /* Quiz Panel */
-        .quiz-options {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            margin-top: 12px;
-        }
-
-        .quiz-btn {
-            padding: 10px;
-            background: #1e293b;
-            border: 1px solid #334155;
-            color: var(--text-main);
-            border-radius: 6px;
-            text-align: left;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .quiz-btn:hover:not(:disabled) {
-            border-color: var(--accent-color);
-            background: #334155;
-        }
-
-        .quiz-btn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-        }
-
-        .stats-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            text-align: center;
-            margin-top: 10px;
-        }
-
-        .stat-box {
-            background: #1e293b;
-            padding: 10px;
-            border-radius: 8px;
-        }
-
-        .stat-val {
-            font-size: 1.25rem;
-            font-weight: bold;
-            color: var(--accent-color);
-        }
-
-        .stat-lbl {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-        }
-
-        #feedbackText {
-            margin-top: 10px;
-            font-size: 0.85rem;
-            min-height: 36px;
-        }
-
-        .correct { color: var(--success); }
-        .incorrect { color: var(--error); }
-
-        @media (max-width: 900px) {
-            .container {
-                grid-template-columns: 1fr;
-            }
-            .lens-outer {
-                width: 320px;
-                height: 320px;
-            }
-        }
-    </style>
+    /* Timer bar smooth progress animation */
+    #timer-progress {
+      transition: width 1s linear, background-color 0.3s ease;
+    }
+  </style>
 </head>
-<body>
+<body class="flex flex-col min-h-screen p-4 md:p-8 justify-between">
 
-<div class="container">
-    <!-- Left: Microscope Viewport -->
-    <div class="viewport-section">
-        <div class="lens-outer" id="lensViewport">
-            <canvas id="microscopeCanvas" width="500" height="500"></canvas>
-            <div class="reticle"></div>
-        </div>
-        <p style="font-size: 0.85rem; color: var(--text-muted);">
-            💡 Drag inside lens to move slide. Click a cell to inspect.
-        </p>
+  <!-- Audio Controls Header Toggle -->
+  <div class="fixed top-4 right-4 z-50">
+    <button id="sound-toggle" onclick="toggleSound()" class="bg-slate-800/90 hover:bg-slate-700 text-amber-400 border border-amber-500/30 p-2.5 rounded-full shadow-lg text-sm font-semibold flex items-center gap-2">
+      <span id="sound-icon">🔊</span>
+      <span id="sound-text" class="hidden sm:inline text-xs">Audio On</span>
+    </button>
+  </div>
+
+  <!-- ==================== HOME PAGE SCREEN ==================== -->
+  <div id="home-screen" class="my-auto flex flex-col items-center justify-center text-center max-w-2xl mx-auto p-6 bg-slate-900/80 border border-amber-500/30 rounded-3xl shadow-2xl backdrop-blur-md">
+    <div class="mb-4">
+      <span class="text-xs font-bold font-orbitron tracking-widest text-amber-400 uppercase bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/20">Biology Game Show</span>
+      <h1 class="text-4xl md:text-6xl font-black font-orbitron tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-amber-500 to-amber-200 glow-gold uppercase mt-3">
+        Cell Cycle
+      </h1>
+      <h2 class="text-2xl md:text-3xl font-black font-orbitron text-amber-400 tracking-widest">
+        DEAL OR NO DEAL
+      </h2>
     </div>
 
-    <!-- Right: Controls & Quiz -->
-    <div class="controls-panel">
-        <!-- Controls Card -->
-        <div class="panel-card">
-            <h2>Microscope Controls</h2>
-            
-            <div style="margin-bottom: 12px;">
-                <label style="font-size: 0.85rem; color: var(--text-muted); display: block; margin-bottom: 6px;">Objective Power</label>
-                <div class="btn-group">
-                    <button class="btn active" onclick="setObjective(10)">10×</button>
-                    <button class="btn" onclick="setObjective(40)">40×</button>
-                    <button class="btn" onclick="setObjective(100)">100×</button>
-                </div>
-            </div>
-
-            <div class="slider-group">
-                <label>Focus Adjustment <span id="focusVal">0</span></label>
-                <input type="range" id="focusSlider" min="-10" max="10" value="5" step="1" oninput="updateFocus()">
-            </div>
-        </div>
-
-        <!-- Quiz Card -->
-        <div class="panel-card">
-            <h2>Cell Identification</h2>
-            <div id="quizPrompt">
-                <p style="font-size: 0.9rem; color: var(--text-muted);">Click on any cell inside the viewport to identify its stage of mitosis.</p>
-            </div>
-
-            <div class="quiz-options" id="quizOptions" style="display: none;">
-                <button class="quiz-btn" onclick="checkAnswer('Interphase')">Interphase</button>
-                <button class="quiz-btn" onclick="checkAnswer('Prophase')">Prophase</button>
-                <button class="quiz-btn" onclick="checkAnswer('Metaphase')">Metaphase</button>
-                <button class="quiz-btn" onclick="checkAnswer('Anaphase')">Anaphase</button>
-                <button class="quiz-btn" onclick="checkAnswer('Telophase')">Telophase / Cytokinesis</button>
-            </div>
-
-            <div id="feedbackText"></div>
-
-            <hr style="border-color: #334155; margin: 12px 0;">
-
-            <div class="stats-grid">
-                <div class="stat-box">
-                    <div class="stat-val" id="scoreVal">0/0</div>
-                    <div class="stat-lbl">Identified</div>
-                </div>
-                <div class="stat-box">
-                    <div class="stat-val" id="accuracyVal">0%</div>
-                    <div class="stat-lbl">Accuracy</div>
-                </div>
-            </div>
-        </div>
+    <div class="bg-slate-800/80 rounded-2xl p-5 border border-slate-700/60 my-4 text-left space-y-3 text-slate-300 text-sm">
+      <h3 class="font-orbitron font-bold text-amber-300 text-base border-b border-slate-700 pb-2 flex items-center gap-2">
+        <span>📜</span> How To Play:
+      </h3>
+      <ul class="space-y-2 list-disc list-inside text-slate-300 leading-relaxed">
+        <li><strong class="text-amber-200">Reserve a Case:</strong> Pick 1 of 10 briefcases to hold your secret point value until the end.</li>
+        <li><strong class="text-amber-200">1-Minute Timer:</strong> You have 60 seconds to answer each question before time runs out!</li>
+        <li><strong class="text-amber-200">Voiceover Questions:</strong> Questions will be read aloud as you open each case!</li>
+        <li><strong class="text-amber-200">Face the Banker:</strong> The Banker will make buyout offers based on remaining point values and trivia accuracy.</li>
+      </ul>
     </div>
-</div>
 
-<script>
-    const canvas = document.getElementById('microscopeCanvas');
-    const ctx = canvas.getContext('2d');
-    const lensViewport = document.getElementById('lensViewport');
+    <button onclick="startGame()" class="w-full sm:w-auto px-10 py-4 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black font-orbitron text-lg rounded-2xl shadow-xl hover:shadow-amber-500/25 transition-all transform hover:-translate-y-1 active:translate-y-0 mt-2">
+      START GAME 🚀
+    </button>
+  </div>
 
-    // State Variables
-    let zoomLevel = 10; // 10, 40, 100
-    let focusOffset = 5; // Perfect focus is at 0
-    let panX = 0;
-    let panY = 0;
+  <!-- ==================== MAIN GAME SCREEN ==================== -->
+  <div id="game-screen" class="hidden flex-col min-h-screen justify-between w-full">
+    <header class="text-center mb-6">
+      <h1 class="text-2xl md:text-4xl font-black font-orbitron tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-amber-500 to-amber-200 glow-gold uppercase">
+        Cell Cycle: Deal or No Deal
+      </h1>
+      <p id="status-text" class="text-slate-300 text-sm md:text-base mt-2 font-medium">
+        Choose your lucky briefcase to keep for the end!
+      </p>
+    </header>
 
-    let isDragging = false;
-    let startX = 0, startY = 0;
+    <main class="max-w-6xl mx-auto w-full grid grid-cols-1 md:grid-cols-4 gap-6 items-start my-auto">
+      <div class="hidden md:flex flex-col gap-2 col-span-1" id="points-left"></div>
 
-    let selectedCell = null;
-    let totalAttempts = 0;
+      <div class="col-span-1 md:col-span-2 flex flex-col items-center gap-6">
+        <div id="player-case-display" class="hidden flex-col items-center bg-slate-800/80 p-4 rounded-xl border border-amber-500/30 w-full max-w-xs text-center shadow-lg">
+          <span class="text-xs font-semibold text-amber-400 uppercase tracking-widest">Your Reserved Case</span>
+          <div id="player-case-num" class="text-3xl font-black font-orbitron text-amber-300 my-1">#--</div>
+          <span class="text-xs text-slate-400">Locked in until the final deal</span>
+        </div>
+
+        <div id="cases-grid" class="grid grid-cols-2 sm:grid-cols-5 gap-3 sm:gap-4 w-full"></div>
+
+        <div class="md:hidden w-full flex justify-between gap-2 text-xs font-semibold">
+          <button onclick="toggleMobilePoints()" class="w-full py-2 bg-slate-800 border border-slate-700 rounded text-slate-300">
+            Toggle Points Board
+          </button>
+        </div>
+
+        <div id="mobile-points" class="hidden md:hidden grid grid-cols-2 gap-2 w-full"></div>
+      </div>
+
+      <div class="hidden md:flex flex-col gap-2 col-span-1" id="points-right"></div>
+    </main>
+  </div>
+
+  <!-- Question Modal with 1-Minute Timer -->
+  <div id="question-modal" class="fixed inset-0 modal-backdrop hidden flex items-center justify-center p-4 z-50">
+    <div class="bg-slate-900 border border-amber-500/40 rounded-2xl max-w-xl w-full p-6 shadow-2xl relative flex flex-col gap-4">
+      
+      <!-- Top Info & Timer Bar -->
+      <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+        <span id="q-case-num" class="text-xs font-bold font-orbitron text-amber-400 uppercase tracking-wider">Case #--</span>
+        
+        <!-- Timer Badge -->
+        <div class="flex items-center gap-2 bg-slate-800 px-3 py-1 rounded-full border border-slate-700">
+          <span class="text-xs">⏱️</span>
+          <span id="timer-text" class="text-sm font-black font-orbitron text-amber-400">01:00</span>
+        </div>
+
+        <button onclick="replayQuestionAudio()" class="text-xs px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 font-semibold flex items-center gap-1.5 transition-colors">
+          <span>🔊</span> Read
+        </button>
+      </div>
+
+      <!-- Countdown Visual Progress Bar -->
+      <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden border border-slate-700/50">
+        <div id="timer-progress" class="bg-amber-400 h-full w-full"></div>
+      </div>
+
+      <h3 id="q-text" class="text-lg md:text-xl font-semibold text-slate-100 leading-snug">
+        Question text goes here?
+      </h3>
+
+      <div id="q-options" class="flex flex-col gap-2 mt-2"></div>
+
+      <div id="q-feedback" class="hidden p-3 rounded-lg text-sm text-center font-medium mt-2"></div>
+    </div>
+  </div>
+
+  <!-- Banker Offer Modal -->
+  <div id="banker-modal" class="fixed inset-0 modal-backdrop hidden flex items-center justify-center p-4 z-50">
+    <div class="bg-slate-900 border-2 border-amber-500 rounded-2xl max-w-md w-full p-6 shadow-2xl text-center flex flex-col items-center gap-4">
+      <div class="w-16 h-16 bg-amber-500/10 border border-amber-500/30 rounded-full flex items-center justify-center text-3xl animate-bounce">
+        📞
+      </div>
+      <div>
+        <h2 class="text-xl font-bold font-orbitron text-slate-200">The Banker is Calling...</h2>
+        <p class="text-xs text-slate-400 mt-1">Based on remaining board value & trivia accuracy</p>
+      </div>
+
+      <div class="bg-slate-800/80 rounded-xl p-4 w-full border border-slate-700 my-2">
+        <span class="text-xs text-slate-400 uppercase tracking-wider block mb-1">Banker's Offer</span>
+        <span id="banker-offer-amount" class="text-3xl md:text-4xl font-black font-orbitron text-amber-400 glow-gold">0</span>
+        <span class="text-xs text-slate-400 block mt-1">Points</span>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4 w-full">
+        <button onclick="acceptDeal()" class="py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold font-orbitron rounded-xl shadow-lg transition-transform active:scale-95">
+          DEAL
+        </button>
+        <button onclick="rejectDeal()" class="py-3 bg-rose-600 hover:bg-rose-500 text-white font-bold font-orbitron rounded-xl shadow-lg transition-transform active:scale-95">
+          NO DEAL
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Game Over Modal -->
+  <div id="gameover-modal" class="fixed inset-0 modal-backdrop hidden flex items-center justify-center p-4 z-50">
+    <div class="bg-slate-900 border-2 border-amber-500 rounded-2xl max-w-md w-full p-6 shadow-2xl text-center flex flex-col items-center gap-4">
+      <h2 id="go-title" class="text-2xl font-black font-orbitron text-amber-400">Game Over!</h2>
+      <p id="go-subtitle" class="text-sm text-slate-300">Here is your final score:</p>
+
+      <div class="bg-slate-800/80 rounded-xl p-4 w-full border border-slate-700 my-2">
+        <span id="go-score-label" class="text-xs text-slate-400 uppercase tracking-wider block mb-1">Total Score Secured</span>
+        <span id="go-final-score" class="text-4xl font-black font-orbitron text-amber-400 glow-gold">0</span>
+        <span class="text-xs text-slate-400 block mt-1">Points</span>
+      </div>
+
+      <p id="go-case-reveal" class="text-xs text-slate-400"></p>
+
+      <button onclick="returnToHome()" class="w-full py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black font-orbitron rounded-xl shadow-lg transition-transform active:scale-95 mt-2">
+        MAIN MENU
+      </button>
+    </div>
+  </div>
+
+  <script>
+    // Audio State & Web Audio Context Synth
+    let soundEnabled = true;
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    function playTone(freq, type, duration, delay = 0) {
+      if (!soundEnabled) return;
+      setTimeout(() => {
+        try {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = type;
+          osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+          gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start();
+          osc.stop(audioCtx.currentTime + duration);
+        } catch (e) {}
+      }, delay);
+    }
+
+    function playSFX(name) {
+      if (!soundEnabled) return;
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+
+      if (name === 'click') {
+        playTone(600, 'sine', 0.08);
+      } else if (name === 'correct') {
+        playTone(523.25, 'triangle', 0.15, 0);   
+        playTone(659.25, 'triangle', 0.15, 120); 
+        playTone(783.99, 'triangle', 0.3, 240);  
+      } else if (name === 'wrong') {
+        playTone(200, 'sawtooth', 0.2, 0);
+        playTone(150, 'sawtooth', 0.3, 150);
+      } else if (name === 'ring') {
+        playTone(800, 'sine', 0.1, 0);
+        playTone(800, 'sine', 0.1, 150);
+        playTone(800, 'sine', 0.1, 300);
+      } else if (name === 'tick') {
+        playTone(800, 'sine', 0.03, 0);
+      }
+    }
+
+    function speakText(text) {
+      if (!soundEnabled || !('speechSynthesis' in window)) return;
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 1.0;
+      utterance.pitch = 1.0;
+      window.speechSynthesis.speak(utterance);
+    }
+
+    function toggleSound() {
+      soundEnabled = !soundEnabled;
+      document.getElementById('sound-icon').innerText = soundEnabled ? '🔊' : '🔇';
+      document.getElementById('sound-text').innerText = soundEnabled ? 'Audio On' : 'Muted';
+      if (!soundEnabled && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+    }
+
+    const POINT_VALUES = [100, 500, 1000, 2500, 5000, 10000, 25000, 50000, 75000, 100000];
+
+    const QUESTIONS = [
+      {
+        q: "In which sub-phase of Interphase does nuclear DNA replication occur?",
+        options: ["G1 Phase", "S Phase", "G2 Phase", "M Phase"],
+        correct: 1
+      },
+      {
+        q: "What key structural transition occurs during Prophase of mitosis?",
+        options: ["Chromosomes align at the equator", "Chromatin condenses into visible chromosomes", "Sister chromatids pull apart", "Nuclear envelope fully reforms"],
+        correct: 1
+      },
+      {
+        q: "During which phase do sister chromatids separate to opposite poles?",
+        options: ["Metaphase", "Prophase", "Anaphase", "Telophase"],
+        correct: 2
+      },
+      {
+        q: "What major checkpoint verifies that all chromosomes are properly attached to spindle fibers?",
+        options: ["G1 Checkpoint", "G2 Checkpoint", "M Checkpoint (Spindle Assembly)", "S Checkpoint"],
+        correct: 2
+      },
+      {
+        q: "How does Cytokinesis differ between animal and plant cells?",
+        options: ["Animal cells form a cell plate; plant cells form a cleavage furrow", "Animal cells form a cleavage furrow; plant cells form a cell plate", "Both form cell plates", "Plant cells do not undergo cytokinesis"],
+        correct: 1
+      },
+      {
+        q: "A non-dividing, quiescent cell state where cells exit the cell cycle is known as:",
+        options: ["G0 Phase", "G1 Phase", "Apoptosis", "Interphase"],
+        correct: 0
+      },
+      {
+        q: "Which regulatory protein complexes drive cells through cell cycle checkpoints when activated?",
+        options: ["Hemoglobin & Myoglobin", "Cyclins & Cyclin-Dependent Kinases (CDKs)", "Actin & Myosin", "DNA Polymerase & Helicase"],
+        correct: 1
+      },
+      {
+        q: "What primary task takes place during the G1 phase of Interphase?",
+        options: ["Division of cytoplasm", "Cell growth & protein synthesis", "Separation of homologous pairs", "Breakdown of spindle apparatus"],
+        correct: 1
+      },
+      {
+        q: "What event characterizes Telophase?",
+        options: ["Chromosomes line up along the metaphase plate", "Nuclear membranes reform around separated chromosomes", "DNA duplicates", "Centrosomes move to opposite ends"],
+        correct: 1
+      },
+      {
+        q: "If a cell fails a major checkpoint and cannot repair its DNA, it undergoes programmed cell death termed:",
+        options: ["Mitosis", "Binary Fission", "Apoptosis", "Cytokinesis"],
+        correct: 2
+      }
+    ];
+
+    // Game State variables
+    let boardCases = [];
+    let playerCase = null;
+    let currentOpenedCase = null;
+    let questionsAnswered = 0;
     let correctAnswers = 0;
+    let currentPhase = 'HOME';
 
-    // Generated Mock Slide Cells Data
-    const cells = [];
-    const stages = ['Interphase', 'Prophase', 'Metaphase', 'Anaphase', 'Telophase'];
+    // Timer Variables
+    let timerInterval = null;
+    let timeLeft = 60; // 60 seconds (1 minute)
 
-    function initSlideData() {
-        // Generate pseudo-random grid of cells on the slide
-        const count = 45;
-        for (let i = 0; i < count; i++) {
-            const stage = stages[Math.floor(Math.random() * stages.length)];
-            cells.push({
-                id: i,
-                x: (Math.random() - 0.5) * 800,
-                y: (Math.random() - 0.5) * 800,
-                radius: 26,
-                stage: stage,
-                rotation: Math.random() * Math.PI * 2
-            });
-        }
+    function formatNum(num) {
+      return num.toLocaleString();
     }
 
-    // Drawing Logic
-    function drawMicroscopeView() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        // Apply Blur Filter based on focus error
-        const blurAmount = Math.abs(focusOffset) * 0.8;
-        canvas.style.filter = `blur(${blurAmount}px)`;
-
-        ctx.save();
-        // Move origin to center of canvas
-        ctx.translate(canvas.width / 2, canvas.height / 2);
-
-        // Scale based on magnification lens
-        const scale = (zoomLevel / 10) * 0.75;
-        ctx.scale(scale, scale);
-        ctx.translate(panX, panY);
-
-        // Draw Slide Background Tissue Texture
-        ctx.fillStyle = '#fce7f3';
-        ctx.beginPath();
-        ctx.arc(0, 0, 600, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Draw Individual Cells
-        cells.forEach(cell => {
-            drawCell(cell);
-        });
-
-        ctx.restore();
+    function startGame() {
+      playSFX('click');
+      document.getElementById('home-screen').classList.add('hidden');
+      document.getElementById('game-screen').classList.remove('hidden');
+      document.getElementById('game-screen').classList.add('flex');
+      initGame();
     }
 
-    function drawCell(cell) {
-        ctx.save();
-        ctx.translate(cell.x, cell.y);
-        ctx.rotate(cell.rotation);
-
-        // Cell Membrane & Cytoplasm
-        ctx.fillStyle = 'rgba(244, 114, 182, 0.45)';
-        ctx.strokeStyle = '#db2777';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.ellipse(0, 0, cell.radius, cell.radius * 0.8, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-
-        // Highlight ring if selected
-        if (selectedCell && selectedCell.id === cell.id) {
-            ctx.strokeStyle = '#38bdf8';
-            ctx.lineWidth = 3;
-            ctx.setLineDash([4, 4]);
-            ctx.beginPath();
-            ctx.arc(0, 0, cell.radius + 6, 0, Math.PI * 2);
-            ctx.stroke();
-            ctx.setLineDash([]);
-        }
-
-        // Chromatin / Chromosomes (Stained Purple)
-        ctx.fillStyle = '#6b21a8';
-        ctx.strokeStyle = '#581c87';
-        ctx.lineWidth = 2;
-
-        switch (cell.stage) {
-            case 'Interphase':
-                // Intact dark nucleus
-                ctx.beginPath();
-                ctx.arc(0, 0, cell.radius * 0.4, 0, Math.PI * 2);
-                ctx.fill();
-                break;
-
-            case 'Prophase':
-                // Condensed, spotty nuclear material
-                for (let i = 0; i < 5; i++) {
-                    ctx.beginPath();
-                    let angle = (i / 5) * Math.PI * 2;
-                    ctx.arc(Math.cos(angle)*6, Math.sin(angle)*6, 3, 0, Math.PI * 2);
-                    ctx.fill();
-                }
-                break;
-
-            case 'Metaphase':
-                // Chromosomes aligned along equator
-                ctx.beginPath();
-                ctx.rect(-2, -cell.radius * 0.5, 4, cell.radius * 1.0);
-                ctx.fill();
-                break;
-
-            case 'Anaphase':
-                // Two distinct sets separating to poles
-                ctx.beginPath();
-                ctx.arc(-cell.radius * 0.35, 0, 5, 0, Math.PI * 2);
-                ctx.arc(cell.radius * 0.35, 0, 5, 0, Math.PI * 2);
-                ctx.fill();
-                break;
-
-            case 'Telophase':
-                // Two forming nuclei & pinched membrane
-                ctx.beginPath();
-                ctx.arc(-cell.radius * 0.4, 0, 7, 0, Math.PI * 2);
-                ctx.arc(cell.radius * 0.4, 0, 7, 0, Math.PI * 2);
-                ctx.fill();
-                break;
-        }
-
-        ctx.restore();
+    function returnToHome() {
+      playSFX('click');
+      stopTimer();
+      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+      document.getElementById('gameover-modal').classList.add('hidden');
+      document.getElementById('game-screen').classList.add('hidden');
+      document.getElementById('game-screen').classList.remove('flex');
+      document.getElementById('home-screen').classList.remove('hidden');
+      currentPhase = 'HOME';
     }
 
-    // Microscope Controls
-    function setObjective(power) {
-        zoomLevel = power;
-        document.querySelectorAll('.btn-group .btn').forEach(btn => {
-            btn.classList.toggle('active', btn.innerText.includes(power));
-        });
-        drawMicroscopeView();
+    function initGame() {
+      const shuffledPoints = [...POINT_VALUES].sort(() => Math.random() - 0.5);
+      const shuffledQuestions = [...QUESTIONS].sort(() => Math.random() - 0.5);
+
+      boardCases = Array.from({ length: 10 }, (_, i) => ({
+        id: i + 1,
+        value: shuffledPoints[i],
+        question: shuffledQuestions[i],
+        isOpened: false,
+        isPlayerCase: false
+      }));
+
+      playerCase = null;
+      currentOpenedCase = null;
+      questionsAnswered = 0;
+      correctAnswers = 0;
+      currentPhase = 'SELECT_PLAYER_CASE';
+
+      document.getElementById('player-case-display').classList.add('hidden');
+      document.getElementById('status-text').innerText = "Choose your lucky briefcase to keep for the end!";
+      
+      renderPointsLadder();
+      renderCasesGrid();
     }
 
-    function updateFocus() {
-        focusOffset = parseInt(document.getElementById('focusSlider').value);
-        document.getElementById('focusVal').innerText = focusOffset;
-        drawMicroscopeView();
-    }
+    function renderPointsLadder() {
+      const leftContainer = document.getElementById('points-left');
+      const rightContainer = document.getElementById('points-right');
+      const mobileContainer = document.getElementById('mobile-points');
 
-    // Drag / Pan Logic
-    lensViewport.addEventListener('mousedown', (e) => {
-        isDragging = true;
-        startX = e.clientX;
-        startY = e.clientY;
-    });
+      leftContainer.innerHTML = '';
+      rightContainer.innerHTML = '';
+      mobileContainer.innerHTML = '';
 
-    window.addEventListener('mousemove', (e) => {
-        if (!isDragging) return;
-        const dx = e.clientX - startX;
-        const dy = e.clientY - startY;
-        startX = e.clientX;
-        startY = e.clientY;
-
-        const scale = (zoomLevel / 10) * 0.75;
-        panX += dx / scale;
-        panY += dy / scale;
-        drawMicroscopeView();
-    });
-
-    window.addEventListener('mouseup', () => isDragging = false);
-
-    // Cell Selection Handling
-    lensViewport.addEventListener('click', (e) => {
-        const rect = canvas.getBoundingClientRect();
-        const clickX = e.clientX - rect.left - (canvas.width / 2);
-        const clickY = e.clientY - rect.top - (canvas.height / 2);
-
-        const scale = (zoomLevel / 10) * 0.75;
-        
-        // Transform click coords back to slide space
-        const slideX = (clickX / scale) - panX;
-        const slideY = (clickY / scale) - panY;
-
-        // Find clicked cell
-        const found = cells.find(c => {
-            const dist = Math.hypot(c.x - slideX, c.y - slideY);
-            return dist <= c.radius;
-        });
-
-        if (found) {
-            selectedCell = found;
-            openQuizPrompt();
-        }
-        drawMicroscopeView();
-    });
-
-    // Quiz Interaction Logic
-    function openQuizPrompt() {
-        document.getElementById('quizPrompt').innerHTML = `
-            <p><strong>Cell #${selectedCell.id + 1} Selected</strong></p>
-            <p style="font-size: 0.85rem; color: var(--text-muted);">What stage of the cell cycle is this cell in?</p>
+      POINT_VALUES.forEach((val, idx) => {
+        const isEliminated = isValueEliminated(val);
+        const cardHTML = `
+          <div class="value-card px-3 py-2 rounded-lg text-center font-orbitron text-xs sm:text-sm font-bold ${isEliminated ? 'eliminated' : 'text-amber-300'}">
+            ${formatNum(val)} pts
+          </div>
         `;
-        document.getElementById('quizOptions').style.display = 'flex';
-        document.getElementById('feedbackText').innerText = '';
-        
-        // Enable option buttons
-        document.querySelectorAll('.quiz-btn').forEach(b => b.disabled = false);
+
+        if (idx < 5) {
+          leftContainer.innerHTML += cardHTML;
+        } else {
+          rightContainer.innerHTML += cardHTML;
+        }
+        mobileContainer.innerHTML += cardHTML;
+      });
     }
 
-    function checkAnswer(chosenStage) {
-        if (!selectedCell) return;
+    function isValueEliminated(val) {
+      return boardCases.some(c => c.isOpened && c.value === val);
+    }
 
-        totalAttempts++;
-        const feedback = document.getElementById('feedbackText');
+    function renderCasesGrid() {
+      const grid = document.getElementById('cases-grid');
+      grid.innerHTML = '';
 
-        if (chosenStage === selectedCell.stage) {
-            correctAnswers++;
-            feedback.className = 'correct';
-            feedback.innerText = `✓ Correct! This cell is in ${selectedCell.stage}.`;
-        } else {
-            feedback.className = 'incorrect';
-            feedback.innerText = `✗ Incorrect. This cell is in ${selectedCell.stage}.`;
+      boardCases.forEach(c => {
+        if (c.isPlayerCase) return;
+
+        const btn = document.createElement('button');
+        btn.className = `case-btn py-6 sm:py-8 rounded-xl font-orbitron text-xl sm:text-2xl font-black text-slate-950 flex flex-col items-center justify-center relative ${c.isOpened ? 'opacity-10 cursor-not-allowed border-none' : ''}`;
+        btn.disabled = c.isOpened;
+
+        btn.innerHTML = `
+          <span class="text-xs text-amber-950/70 font-sans font-semibold mb-1">CASE</span>
+          <span>${c.id}</span>
+        `;
+
+        btn.onclick = () => handleCaseClick(c);
+        grid.appendChild(btn);
+      });
+    }
+
+    function handleCaseClick(c) {
+      playSFX('click');
+      if (currentPhase === 'SELECT_PLAYER_CASE') {
+        c.isPlayerCase = true;
+        playerCase = c;
+        currentPhase = 'PLAYING';
+
+        document.getElementById('player-case-num').innerText = `#${c.id}`;
+        document.getElementById('player-case-display').classList.remove('hidden');
+        document.getElementById('player-case-display').classList.add('flex');
+        
+        document.getElementById('status-text').innerText = "Pick a briefcase to reveal a Cell Cycle trivia question!";
+        renderCasesGrid();
+      } else if (currentPhase === 'PLAYING' && !c.isOpened) {
+        currentOpenedCase = c;
+        openQuestionModal(c);
+      }
+    }
+
+    // 1-Minute Timer Functions
+    function startTimer() {
+      stopTimer();
+      timeLeft = 60;
+      updateTimerUI();
+
+      timerInterval = setInterval(() => {
+        timeLeft--;
+        updateTimerUI();
+
+        if (timeLeft <= 10 && timeLeft > 0) {
+          playSFX('tick');
         }
 
-        // Disable options until next cell selection
-        document.querySelectorAll('.quiz-btn').forEach(b => b.disabled = true);
-        updateScoreBoard();
+        if (timeLeft <= 0) {
+          stopTimer();
+          handleTimeout();
+        }
+      }, 1000);
     }
 
-    function updateScoreBoard() {
-        document.getElementById('scoreVal').innerText = `${correctAnswers}/${totalAttempts}`;
-        const accuracy = totalAttempts > 0 ? Math.round((correctAnswers / totalAttempts) * 100) : 0;
-        document.getElementById('accuracyVal').innerText = `${accuracy}%`;
+    function stopTimer() {
+      if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+      }
     }
 
-    // Initialize Lab
-    initSlideData();
-    drawMicroscopeView();
-</script>
+    function updateTimerUI() {
+      const minutes = Math.floor(timeLeft / 60);
+      const seconds = timeLeft % 60;
+      const formatted = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+      
+      const timerText = document.getElementById('timer-text');
+      const progressBar = document.getElementById('timer-progress');
+      
+      timerText.innerText = formatted;
+      
+      const percentage = (timeLeft / 60) * 100;
+      progressBar.style.width = `${percentage}%`;
 
+      if (timeLeft <= 10) {
+        timerText.classList.remove('text-amber-400');
+        timerText.classList.add('text-rose-500', 'animate-pulse');
+        progressBar.classList.remove('bg-amber-400');
+        progressBar.classList.add('bg-rose-500');
+      } else {
+        timerText.classList.remove('text-rose-500', 'animate-pulse');
+        timerText.classList.add('text-amber-400');
+        progressBar.classList.remove('bg-rose-500');
+        progressBar.classList.add('bg-amber-400');
+      }
+    }
+
+    function handleTimeout() {
+      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+      const qOptions = document.getElementById('q-options');
+      const qFeedback = document.getElementById('q-feedback');
+
+      Array.from(qOptions.children).forEach(b => b.disabled = true);
+
+      questionsAnswered++;
+      currentOpenedCase.isOpened = true;
+      playSFX('wrong');
+
+      qFeedback.className = 'p-3 rounded-lg text-sm text-center font-medium mt-2 bg-rose-500/10 border border-rose-500/30 text-rose-300';
+      qFeedback.innerText = `⏰ Time's Up! Case #${currentOpenedCase.id} revealed: ${formatNum(currentOpenedCase.value)} points.`;
+      qFeedback.classList.remove('hidden');
+
+      setTimeout(() => {
+        document.getElementById('question-modal').classList.add('hidden');
+        renderPointsLadder();
+        renderCasesGrid();
+
+        checkNextStage();
+      }, 2500);
+    }
+
+    function openQuestionModal(c) {
+      const modal = document.getElementById('question-modal');
+      const qNum = document.getElementById('q-case-num');
+      const qText = document.getElementById('q-text');
+      const qOptions = document.getElementById('q-options');
+      const qFeedback = document.getElementById('q-feedback');
+
+      qNum.innerText = `Case #${c.id}`;
+      qText.innerText = c.question.q;
+      qFeedback.classList.add('hidden');
+      qOptions.innerHTML = '';
+
+      c.question.options.forEach((opt, idx) => {
+        const optBtn = document.createElement('button');
+        optBtn.className = 'w-full text-left p-3 rounded-xl bg-slate-800 hover:bg-slate-700/80 border border-slate-700/60 text-slate-200 text-sm font-medium transition-colors flex items-center gap-3';
+        optBtn.innerHTML = `
+          <span class="w-6 h-6 rounded-full bg-slate-700 text-amber-400 font-bold flex items-center justify-center text-xs">${String.fromCharCode(65 + idx)}</span>
+          <span>${opt}</span>
+        `;
+        optBtn.onclick = () => submitAnswer(idx, optBtn);
+        qOptions.appendChild(optBtn);
+      });
+
+      modal.classList.remove('hidden');
+
+      // Start Countdown & Voiceover
+      startTimer();
+      speakText(c.question.q);
+    }
+
+    function replayQuestionAudio() {
+      if (currentOpenedCase) {
+        speakText(currentOpenedCase.question.q);
+      }
+    }
+
+    function submitAnswer(selectedIndex, btnElement) {
+      stopTimer();
+      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+      
+      const q = currentOpenedCase.question;
+      const qOptions = document.getElementById('q-options');
+      const qFeedback = document.getElementById('q-feedback');
+
+      Array.from(qOptions.children).forEach(b => b.disabled = true);
+
+      questionsAnswered++;
+      currentOpenedCase.isOpened = true;
+
+      if (selectedIndex === q.correct) {
+        playSFX('correct');
+        correctAnswers++;
+        btnElement.classList.remove('bg-slate-800');
+        btnElement.classList.add('bg-emerald-950', 'border-emerald-500', 'text-emerald-200');
+        
+        qFeedback.className = 'p-3 rounded-lg text-sm text-center font-medium mt-2 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300';
+        qFeedback.innerText = `Correct! You revealed & eliminated the ${formatNum(currentOpenedCase.value)} points case.`;
+      } else {
+        playSFX('wrong');
+        btnElement.classList.remove('bg-slate-800');
+        btnElement.classList.add('bg-rose-950', 'border-rose-500', 'text-rose-200');
+
+        qFeedback.className = 'p-3 rounded-lg text-sm text-center font-medium mt-2 bg-rose-500/10 border border-rose-500/30 text-rose-300';
+        qFeedback.innerText = `Incorrect. Correct answer: "${q.options[q.correct]}". Value revealed: ${formatNum(currentOpenedCase.value)} points.`;
+      }
+
+      qFeedback.classList.remove('hidden');
+
+      setTimeout(() => {
+        document.getElementById('question-modal').classList.add('hidden');
+        renderPointsLadder();
+        renderCasesGrid();
+
+        checkNextStage();
+      }, 2400);
+    }
+
+    function checkNextStage() {
+      const unopenedCasesCount = boardCases.filter(c => !c.isOpened && !c.isPlayerCase).length;
+
+      if (unopenedCasesCount === 5 || unopenedCasesCount === 2) {
+        triggerBankerOffer();
+      } else if (unopenedCasesCount === 0) {
+        triggerFinalReveal();
+      }
+    }
+
+    function triggerBankerOffer() {
+      currentPhase = 'BANKER_OFFER';
+      playSFX('ring');
+
+      const remainingCases = boardCases.filter(c => !c.isOpened);
+      const sumValues = remainingCases.reduce((acc, c) => acc + c.value, 0);
+      const avgValue = sumValues / remainingCases.length;
+
+      const accuracy = questionsAnswered > 0 ? (correctAnswers / questionsAnswered) : 1;
+      const offer = Math.round(avgValue * (0.6 + (accuracy * 0.3)));
+
+      document.getElementById('banker-offer-amount').innerText = formatNum(offer);
+      document.getElementById('banker-modal').classList.remove('hidden');
+    }
+
+    function acceptDeal() {
+      playSFX('click');
+      document.getElementById('banker-modal').classList.add('hidden');
+      const offerVal = document.getElementById('banker-offer-amount').innerText;
+      
+      showGameOver(
+        "DEAL ACCEPTED!",
+        "You accepted the Banker's offer!",
+        offerVal,
+        `Your reserved Case #${playerCase.id} contained ${formatNum(playerCase.value)} points.`
+      );
+    }
+
+    function rejectDeal() {
+      playSFX('click');
+      document.getElementById('banker-modal').classList.add('hidden');
+      currentPhase = 'PLAYING';
+      document.getElementById('status-text').innerText = "No Deal! Keep opening briefcases.";
+    }
+
+    function triggerFinalReveal() {
+      showGameOver(
+        "FINAL CASE REVEAL!",
+        `You played all the way to the end with Case #${playerCase.id}!`,
+        formatNum(playerCase.value),
+        `Trivia Accuracy: ${correctAnswers} / ${questionsAnswered} correct.`
+      );
+    }
+
+    function showGameOver(title, subtitle, finalScoreStr, caseRevealText) {
+      currentPhase = 'GAME_OVER';
+      document.getElementById('go-title').innerText = title;
+      document.getElementById('go-subtitle').innerText = subtitle;
+      document.getElementById('go-final-score').innerText = finalScoreStr;
+      document.getElementById('go-case-reveal').innerText = caseRevealText;
+      
+      document.getElementById('gameover-modal').classList.remove('hidden');
+    }
+
+    function toggleMobilePoints() {
+      const mobBoard = document.getElementById('mobile-points');
+      mobBoard.classList.toggle('hidden');
+    }
+  </script>
 </body>
 </html>
